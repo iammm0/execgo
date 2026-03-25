@@ -30,6 +30,7 @@ func main() {
 
 	logger.Info("ExecGo starting",
 		"addr", cfg.HTTPAddr,
+		"grpc_addr", cfg.GRPCAddr,
 		"data_dir", cfg.DataDir,
 		"max_concurrency", cfg.MaxConcurrency,
 	)
@@ -50,6 +51,12 @@ func main() {
 
 	sched := scheduler.New(sm, metrics, logger, cfg.MaxConcurrency)
 	sched.Start(context.Background())
+
+	stopGRPC, err := startGRPCServer(cfg.GRPCAddr, sm, sched, metrics, logger)
+	if err != nil {
+		logger.Error("failed to start gRPC server", "error", err)
+		os.Exit(1)
+	}
 
 	engine := httpserver.NewEngine(sm, sched, metrics, logger)
 
@@ -80,6 +87,11 @@ func main() {
 	logger.Info("stopping HTTP server...")
 	if err := httpServer.Shutdown(shutdownCtx); err != nil {
 		logger.Error("HTTP server shutdown error", "error", err)
+	}
+
+	if stopGRPC != nil {
+		logger.Info("stopping gRPC server...")
+		stopGRPC()
 	}
 
 	logger.Info("stopping scheduler...")
