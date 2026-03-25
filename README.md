@@ -4,15 +4,15 @@
 
 [![Go](https://img.shields.io/badge/Go-1.22+-00ADD8?logo=go)](https://go.dev)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Zero Dependencies](https://img.shields.io/badge/Dependencies-zero-brightgreen.svg)]()
+[![Core deps](https://img.shields.io/badge/Core%20module-stdlib%20only-blue.svg)]()
 
 ---
 
 ## 简介 | Overview
 
-**ExecGo** 是一个使用纯 Go 标准库构建的极简 AI 执行引擎，零第三方依赖。它作为 AI Agent（如 secbot）的执行层，通过 HTTP API 暴露任务提交与管理能力。
+**ExecGo** 的核心模块（`github.com/iammm0/execgo`）仅依赖 Go 标准库；可选能力（SQLite 持久化、Redis 读穿缓存）放在独立子模块 `contrib/*` 中，避免强绑第三方依赖。
 
-**ExecGo** is a minimal AI execution engine built with pure Go standard library — zero third-party dependencies. It acts as an execution layer for AI agents (e.g., secbot), exposing an HTTP API for task submission and management.
+**ExecGo**’s core module uses only the Go standard library. Optional features (SQLite persistence, Redis read-through cache) live in separate `contrib/*` submodules so consumers can opt in without pulling drivers they do not need.
 
 ### 核心特性 | Key Features
 
@@ -21,7 +21,7 @@
 | **Task DSL** | 严格的任务契约：支持 id, type, params, depends_on, retry, timeout |
 | **DAG Scheduling** | 基于依赖图的任务编排，Kahn 算法环检测 |
 | **Concurrent Execution** | goroutine + channel 并发模型，信号量控制最大并发 |
-| **Pluggable Executors** | HTTP / Shell / File 内置执行器，注册表机制易于扩展 |
+| **Pluggable Executors** | 内置 http / shell / file / sleep / dns / tcp / noop，注册表机制易于扩展 |
 | **Retry & Timeout** | 指数退避重试 + context 超时控制 |
 | **State Persistence** | 内存存储 + JSON 文件定期持久化，崩溃恢复 |
 | **Observability** | 结构化 JSON 日志 (slog) + traceID 追踪 + /metrics 端点 |
@@ -47,9 +47,8 @@
 │ HTTP     │ Shell    │ File     │ ... (extensible)   │
 │ Executor │ Executor │ Executor │                    │
 ├──────────┴──────────┴──────────┴────────────────────┤
-│              State Manager                          │
-│        map[string]*Task + sync.RWMutex              │
-│          ↕ JSON file persistence                    │
+│              Store (store.Store)                    │
+│   jsonfile (default) │ sqlite │ + Redis (contrib)  │
 ├─────────────────────────────────────────────────────┤
 │            Observability                            │
 │    slog/JSON │ traceID │ /metrics                   │
@@ -146,33 +145,51 @@ curl http://localhost:8080/metrics
 
 ---
 
+## 测试 | Testing
+
+项目采用分层测试结构：保留必要的包内测试（用于私有实现细节），并在根目录 `tests/` 下集中维护跨包测试。
+
+```bash
+# 全量（含包内 + tests 分层）
+go test ./...
+
+# 单元测试（导出 API、边界与错误路径）
+go test ./tests/unit/...
+
+# 模块测试（跨组件但非完整端到端）
+go test ./tests/module/...
+
+# 集成测试（HTTP 提交 -> 调度执行 -> 状态查询）
+go test ./tests/integration/...
+```
+
+---
+
 ## 项目结构 | Project Structure
 
 ```
 execgo/
-├── cmd/
-│   └── execgo/
-│       └── main.go              # 入口 / entry point
-├── internal/
-│   ├── api/
-│   │   └── handler.go           # HTTP API 层 / HTTP API layer
-│   ├── config/
-│   │   └── config.go            # 配置管理 / configuration
-│   ├── executor/
-│   │   ├── executor.go          # 执行器接口与注册表 / executor interface & registry
-│   │   ├── http.go              # HTTP 执行器 / HTTP executor
-│   │   ├── shell.go             # Shell 执行器(白名单) / Shell executor (whitelisted)
-│   │   └── file.go              # 文件执行器 / File executor
-│   ├── models/
-│   │   └── task.go              # Task DSL 与核心类型 / Task DSL & core types
-│   ├── observability/
-│   │   └── observability.go     # 日志、追踪、指标 / logging, tracing, metrics
-│   ├── scheduler/
-│   │   └── scheduler.go         # DAG 调度器 / DAG scheduler
-│   └── state/
-│       └── state.go             # 状态管理与持久化 / state management & persistence
-├── data/                        # 持久化数据目录 / persistence data directory
-├── go.mod
+├── cmd/execgo/main.go           # 默认二进制：JSON 文件存储 / default binary: JSON file store
+├── pkg/
+│   ├── models/                  # Task DSL / DTO（可被其他模块导入）/ importable DTOs
+│   ├── store/                   # Store 接口 / store interface
+│   ├── store/jsonfile/          # 默认：内存 + state.json / default persistence
+│   ├── executor/                # 执行器注册表与内置实现 / executor registry
+│   ├── scheduler/               # DAG 调度器（依赖 store.Store）/ DAG scheduler
+│   ├── httpserver/              # Engine + 中间件链 + 路由 / HTTP engine & middleware
+│   ├── config/                  # Config + Provider（类 Viper 可插拔配置源）/ pluggable config
+│   └── observability/           # slog、trace、指标 / logging, trace, metrics
+├── tests/
+│   ├── unit/                    # 单元测试（黑盒）/ unit tests
+│   ├── module/                  # 模块级测试 / module tests
+│   ├── integration/             # 集成测试 / integration tests
+│   └── testutil/                # 复用测试夹具 / shared test helpers
+├── contrib/sqlite/              # 子模块：SQLite 版 store.Store / SQLite store submodule
+├── contrib/rediscache/          # 子模块：Redis 读穿缓存装饰器 / Redis cache submodule
+├── examples/fullserver/         # 子模块：组合 jsonfile|sqlite + 可选 Redis / full stack example
+├── go.work                      # 仅本仓库开发用；下游项目不需要 / dev-only; consumers do not need this
+├── data/
+├── go.mod                       # 核心模块无第三方依赖 / core module: no third-party deps
 └── README.md
 ```
 
@@ -183,7 +200,7 @@ execgo/
 ```json
 {
   "id":         "unique-task-id",
-  "type":       "http | shell | file",
+  "type":       "http | shell | file | sleep | dns | tcp | noop",
   "params":     { /* 类型相关参数 / type-specific params */ },
   "depends_on": ["other-task-id"],
   "retry":      3,
@@ -199,16 +216,53 @@ execgo/
 {"url": "https://example.com", "method": "GET", "headers": {"Authorization": "Bearer xxx"}, "body": "..."}
 ```
 
-**Shell Executor (白名单命令 | whitelisted commands):**
+**Shell Executor（跨平台双模式 | cross-platform dual modes）:**
 ```json
 {"command": "echo", "args": ["hello", "world"], "dir": "/tmp"}
 ```
 
+或脚本模式 | Script mode:
+```json
+{"runner": "auto", "script": "echo hello from script", "dir": "/tmp"}
+```
+
+`runner` 支持 | Supported runners: `auto | direct | powershell | cmd | sh`。
+- `auto` 默认：Windows 使用 `powershell -NoProfile -NonInteractive -Command`，Linux/macOS 使用 `/bin/sh -c`。
+- `script` 与 `command` 同时给出时，优先执行 `script`。
+- `direct` 仅用于 `command + args` 直连执行（不是脚本 runner）。
+
 允许的命令 | Allowed commands: `echo, cat, ls, date, whoami, hostname, uname, pwd, curl, wget, ping, dig, grep, awk, sed, head, tail, wc, sort, uniq, find, dir, where, type`
+
+可选开放模式 | Optional open mode: 设置环境变量 `EXECGO_SHELL_POLICY=open` 后，`shell` 执行器将跳过 direct 模式的命令白名单校验；`script` 模式同样可执行任意脚本（仍受进程权限与 OS 约束）。
+
+安全建议 | Security note: `open` 模式仅建议在**可信的 Agent 编排层 + 已有鉴权/网络隔离**场景启用；若 API 对公网暴露，不建议启用该模式。
 
 **File Executor:**
 ```json
 {"action": "read | write | append | delete | stat", "path": "/tmp/data.txt", "content": "..."}
+```
+
+**Sleep Executor（编排延时，可被任务 `timeout` / context 取消 | delay for orchestration, cancellable）:**
+```json
+{"duration_ms": 2000}
+```
+单次上限 | Max `duration_ms`: `600000`（10 分钟 | 10 minutes）。
+
+**DNS Executor:**
+```json
+{"name": "example.com", "record": "ip"}
+```
+`record` 可选：`ip`（默认，A/AAAA 地址列表）、`txt`、`cname`。
+
+**TCP Executor（端口连通性 | TCP dial probe）:**
+```json
+{"address": "example.com:443", "timeout_ms": 5000}
+```
+`timeout_ms` 可选，默认 `5000`；上限 | Max `timeout_ms`: `60000`。
+
+**Noop Executor（占位 / 测试，无外部 IO | placeholder, no I/O）:**
+```json
+{"message": "optional"}
 ```
 
 ---
@@ -228,31 +282,90 @@ execgo/
 
 ## 扩展 | Extensibility
 
-添加自定义执行器只需实现 `Executor` 接口并注册：
-
-Adding a custom executor requires implementing the `Executor` interface and registering it:
+### 自定义执行器 | Custom executors
 
 ```go
+import (
+    "context"
+    "encoding/json"
+
+    "github.com/iammm0/execgo/pkg/executor"
+    "github.com/iammm0/execgo/pkg/models"
+)
+
 type MyExecutor struct{}
 
 func (e *MyExecutor) Type() string { return "my_type" }
 
 func (e *MyExecutor) Execute(ctx context.Context, task *models.Task) (json.RawMessage, error) {
-    // 你的逻辑 / your logic
     return json.Marshal(map[string]any{"result": "ok"})
 }
 
-// 注册 / Register
 func init() {
     executor.Register(&MyExecutor{})
 }
+```
+
+### 作为库嵌入 | Embedding as a library
+
+1. **存储** | **Storage**：实现或使用 `pkg/store.Store`。默认使用 `pkg/store/jsonfile`。SQLite 与 Redis 见下文子模块。
+2. **HTTP（类 Gin 的 Use 链）** | **HTTP (Gin-style `Use`)**：`httpserver.NewEngine(store, scheduler, metrics, logger)`，按需 `engine.Use(mw)`，`engine.Handler()`；挂载到已有 `ServeMux` 时用 `httpserver.Mount(parentMux, "/execgo", engine)`。
+3. **配置（类 Viper 的 Provider）** | **Config (Viper-style `Provider`)**：`config.Load(config.NewFlagEnvProvider())` 或实现 `config.Provider`（`GetString` / `GetInt`），将 Viper / 自有配置源适配到该接口即可。
+
+### 下游项目如何依赖 | How downstream apps depend on ExecGo
+
+**不需要**配置 `go.work`，也**不需要**为集成 ExecGo 单独写特殊 CI 工作流。在业务项目的 `go.mod` 里按需 `require` 已发布版本（或伪版本），照常 `go build` / `go test` 即可。
+
+**不需要** | **No need for**: `go.work`, custom pipelines just for ExecGo.
+
+**需要** | **Typical `go.mod`**:
+
+```go
+require (
+    github.com/iammm0/execgo v0.x.y                    // 核心：scheduler、httpserver、jsonfile 等
+    github.com/iammm0/execgo/contrib/sqlite v0.x.y     // 可选
+    github.com/iammm0/execgo/contrib/rediscache v0.x.y // 可选
+)
+```
+
+仅在**同时改 ExecGo 源码与你的应用**时，才在业务 `go.mod` 里用 `replace` 指向本地路径；这与 `go.work` 无关，也不是常规集成方式。
+
+`go.work` **仅用于 clone 本仓库**后同时开发核心、`contrib`、`examples` 多模块；维护者本地或本仓库 CI 可用，**不是**使用方的义务。
+
+### 子模块：SQLite | Submodule: SQLite
+
+模块路径：`github.com/iammm0/execgo/contrib/sqlite`（子目录独立 `go.mod`）。对外集成：在业务 `go.mod` 中 `require` 该模块即可；clone 本仓库做开发时可在仓库根使用 `go.work` 方便联编。
+
+```go
+import "github.com/iammm0/execgo/contrib/sqlite"
+
+st, err := sqlite.Open("/path/to/execgo.db")
+defer st.Close()
+```
+
+### 子模块：Redis 读穿缓存 | Submodule: Redis read-through cache
+
+模块路径：`github.com/iammm0/execgo/contrib/rediscache`。包装任意 `store.Store`；`Get` 走缓存，`Put` / `UpdateStatus` / `Delete` 会失效对应键；`GetAll` 始终直读底层存储。
+
+```go
+import "github.com/iammm0/execgo/contrib/rediscache"
+
+st = rediscache.Wrap(st, redisClient, rediscache.Options{TTL: 5 * time.Minute})
+```
+
+### 全功能示例二进制 | Full-stack example binary
+
+在 `examples/fullserver` 子模块中：`EXECGO_STORE=sqlite` 使用 SQLite（默认路径为 `data-dir/execgo.db`，也可用 `EXECGO_SQLITE_PATH`）；设置 `EXECGO_REDIS_URL` 时在存储之上叠加 Redis 缓存。构建：
+
+```bash
+cd examples/fullserver && go build -o fullserver .
 ```
 
 ---
 
 ## 设计原则 | Design Principles
 
-1. **零依赖** | Zero dependencies — 纯 Go 标准库，无供应商锁定
+1. **核心无第三方依赖** | Core module uses only the standard library — optional drivers live in `contrib/*`
 2. **分层架构** | Layered architecture — API → Scheduler → Executor → State
 3. **并发安全** | Concurrency safe — `sync.RWMutex` + channel 保护所有共享状态
 4. **可扩展** | Extensible — 注册表模式，添加新执行器无需修改核心代码

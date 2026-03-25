@@ -1,0 +1,94 @@
+package module_test
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	"github.com/iammm0/execgo/pkg/executor"
+	"github.com/iammm0/execgo/pkg/models"
+	"github.com/iammm0/execgo/tests/testutil"
+)
+
+type flakyExecutor struct {
+	taskType  string
+	failTimes int32
+	attempts  atomic.Int32
+}
+
+func (e *flakyExecutor) Type() string { return e.taskType }
+
+func (e *flakyExecutor) Execute(ctx context.Context, task *models.Task) (json.RawMessage, error) {
+	_ = task
+	n := e.attempts.Add(1)
+	if n <= e.failTimes {
+		return nil, fmt.Errorf("planned failure %d", n)
+	}
+	return json.RawMessage(`{"ok":true}`), nil
+}
+
+type failExecutor struct{ taskType string }
+
+func (e *failExecutor) Type() string { return e.taskType }
+
+func (e *failExecutor) Execute(ctx context.Context, task *models.Task) (json.RawMessage, error) {
+	_ = ctx
+	_ = task
+	return nil, fmt.Errorf("always fail")
+}
+
+func TestScheduler_RetryThenSuccess(t *testing.T) {
+	rt := testutil.NewRuntime(t, 2)
+
+	taskType := fmt.Sprintf("flaky-%d", time.Now().UnixNano())
+	flaky := &flakyExecutor{taskType: taskType, failTimes: 1}
+	executor.Register(flaky)
+
+	rt.Scheduler.Submit(&models.TaskGraph{
+		Tasks: []*models.Task{
+			{ID: "retry-task", Type: taskType, Retry: 1},
+		},
+	})
+
+	task := testutil.WaitTaskInStore(t, rt.Store, "retry-task", 4*time.Second)
+	if task.Status != models.StatusSuccess {
+		t.Fatalf("expected success, got %s (error=%s)", task.Status, task.Error)
+	}
+	if got := flaky.attempts.Load(); got != 2 {
+		t.Fatalf("expected 2 attempts, got %d", got)
+	}
+}
+
+func TestScheduler_FailurePropagatesSkip(t *testing.T) {
+	rt := testutil.NewRuntime(t, 2)
+	executor.RegisterBuiltins()
+
+	taskType := fmt.Sprintf("fail-%d", time.Now().UnixNano())
+	executor.Register(&failExecutor{taskType: taskType})
+
+	rt.Scheduler.Submit(&models.TaskGraph{
+		Tasks: []*models.Task{
+			{ID: "a", Type: taskType},
+			{ID: "b", Type: "noop", DependsOn: []string{"a"}},
+			{ID: "c", Type: "noop", DependsOn: []string{"b"}},
+		},
+	})
+
+	taskA := testutil.WaitTaskInStore(t, rt.Store, "a", 4*time.Second)
+	taskB := testutil.WaitTaskInStore(t, rt.Store, "b", 4*time.Second)
+	taskC := testutil.WaitTaskInStore(t, rt.Store, "c", 4*time.Second)
+
+	if taskA.Status != models.StatusFailed {
+		t.Fatalf("task a should fail, got %s", taskA.Status)
+	}
+	if taskB.Status != models.StatusSkipped {
+		t.Fatalf("task b should be skipped, got %s", taskB.Status)
+	}
+	if taskC.Status != models.StatusSkipped {
+		t.Fatalf("task c should be skipped, got %s", taskC.Status)
+	}
+}
+
