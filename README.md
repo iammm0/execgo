@@ -144,6 +144,68 @@ curl http://localhost:8080/metrics
 ```
 
 ---
+## 文档入口 | Documentation
+
+完整文档位于仓库下的 `docs/` 目录，包含：
+
+- 上层编排层（Orchestrator/Agent）如何把你的 DAG 映射成 ExecGo 的 `TaskGraph`
+- Docker Compose 与 Kubernetes 集群部署示范
+- Go/Java/Python 的 HTTP 接入示例
+- API / Task DSL / 执行器参数等参考手册
+
+快速入口：
+
+- 中文总入口：[`docs/zh/README.md`](docs/zh/README.md)
+- English total entry：[`docs/en/README.md`](docs/en/README.md)
+
+---
+
+## 使用者疑惑导览（中文）
+
+1. 我是上层编排层，应该怎么把工作流映射成 ExecGo 的 `TaskGraph`？
+   见：[映射：DAG -> TaskGraph](docs/zh/orchestrator/mapping-dag-to-taskgraph.md)
+2. `depends_on` 到底表达什么？为什么下游不会自动拿到上游结果？
+   见：[映射：DAG -> TaskGraph](docs/zh/orchestrator/mapping-dag-to-taskgraph.md)
+3. 为什么任务失败后下游会变成 `skipped`？
+   见：[失败语义：failed vs skipped](docs/zh/orchestrator/failure-semantics.md)
+4. 提交后如何拿到最终结果？是同步还是异步？
+   见：[轮询与幂等：稳定提交与读取结果](docs/zh/orchestrator/polling-and-idempotency.md)
+5. 为什么会收到 `400 Bad Request`？`TaskGraph.Validate()` 校验失败是什么意思？
+   见：[Task DSL 参考（索引）](docs/zh/reference/task-dsl.md)
+6. 如何设置 `retry` 和 `timeout`？
+   见：[任务 DSL 参考（索引）](docs/zh/reference/task-dsl.md)
+7. `result`/`error` 怎么解析、数据长什么样？
+   见：[HTTP API 参考（索引）](docs/zh/reference/api.md)
+8. 如何部署到自己的 Docker Compose？
+   见：[Docker Compose 部署示范](docs/zh/deploy/compose.md)
+9. 如何部署到 Kubernetes（Deployment/Service/PVC）？
+   见：[Kubernetes 部署示范](docs/zh/deploy/kubernetes.md)
+10. Kubernetes 多副本能不能 `replicas > 1`？
+   见：[Kubernetes 多副本注意事项](docs/zh/deploy/kubernetes.md)
+11. 我想用 Go 调用 ExecGo，怎么做？
+   见：[Go（HTTP）接入示例](docs/zh/integration/client-go.md)
+12. 我想用 Java 调用 ExecGo，怎么做？
+   见：[Java（HTTP）接入示例](docs/zh/integration/client-java.md)
+13. 我想用 Python 调用 ExecGo，怎么做？
+   见：[Python（HTTP）接入示例](docs/zh/integration/client-python.md)
+14. 我想用 Node.js + TypeScript 调用 ExecGo，怎么做？
+   见：[Node.js + TypeScript（HTTP）接入示例](docs/zh/integration/client-nodejs-ts.md)
+15. shell 执行器是否安全？怎么避免任意命令执行风险？
+   见：[执行器与参数参考（索引）](docs/zh/reference/executors.md)，进一步：[Shell 执行器参数](docs/zh/reference/任务%20DSL%20规范/执行参数规范/Shell%20执行器参数.md)
+16. 任务状态存储在哪里？如何持久化/恢复？
+   见：[数据持久化策略](docs/zh/reference/系统架构/数据持久化策略.md)
+17. 怎么扩展执行器或实现自定义执行器？
+   见：[执行器与参数参考（索引）](docs/zh/reference/executors.md)
+18. 遇到幂等/重复提交问题怎么办？
+   见：[轮询与幂等：稳定提交与读取结果](docs/zh/orchestrator/polling-and-idempotency.md)
+
+---
+
+## Common Questions (English)
+
+- See [`docs/en/faqs.md`](docs/en/faqs.md)
+
+---
 ## gRPC（微服务接入）/ gRPC (Microservice Integration)
 
 ExecGo 内置的 gRPC 服务使用 proto 路径：`execgo.v1.ExecGo`，默认监听端口 `50051`（由环境变量 `EXECGO_GRPC_ADDR` 控制；默认 `:50051`）。
