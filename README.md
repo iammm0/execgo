@@ -144,6 +144,49 @@ curl http://localhost:8080/metrics
 ```
 
 ---
+## gRPC（微服务接入）/ gRPC (Microservice Integration)
+
+ExecGo 内置的 gRPC 服务使用 proto 路径：`execgo.v1.ExecGo`，默认监听端口 `50051`（由环境变量 `EXECGO_GRPC_ADDR` 控制；默认 `:50051`）。
+
+### 方法 / Methods
+- `SubmitTasks`：提交任务 DAG（异步执行）
+- `GetTask`：查询单个任务
+- `ListTasks`：列出所有任务
+- `DeleteTask`：删除任务
+- `Health`：健康检查
+- `Metrics`：指标
+
+### protobuf JSON 字段约定 / protobuf JSON field convention
+`paramsJson` 与 `resultJson` 采用“字符串形式的 JSON”（即把原本 `params/result` 的 JSON 内容用字符串包起来）。
+`timeoutMs` 单位为毫秒。
+
+### grpcurl 示例 / grpcurl examples
+（需要你本地安装 `grpcurl`；下面演示使用 plaintext）
+
+1. 提交任务
+```bash
+grpcurl -plaintext localhost:50051 execgo.v1.ExecGo/SubmitTasks -d '{
+  "tasks": [
+    {
+      "id": "check-host",
+      "type": "shell",
+      "paramsJson": "{\"command\":\"hostname\"}",
+      "retry": 2,
+      "timeoutMs": 5000,
+      "dependsOn": []
+    }
+  ]
+}'
+```
+
+2. 查询任务
+```bash
+grpcurl -plaintext localhost:50051 execgo.v1.ExecGo/GetTask -d '{
+  "id": "check-host"
+}'
+```
+
+---
 
 ## 测试 | Testing
 
