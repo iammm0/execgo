@@ -56,6 +56,9 @@ func (e *Engine) DisableTrace() *Engine {
 func (e *Engine) routesMux() *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /tasks", e.handleSubmitTasks)
+	mux.HandleFunc("GET /mcp/tools", e.handleMCPListTools)
+	mux.HandleFunc("POST /mcp/call", e.handleMCPCallTool)
+	mux.HandleFunc("GET /mcp/tasks/{id}", e.handleMCPGetTask)
 	mux.HandleFunc("GET /tasks/{id}", e.handleGetTask)
 	mux.HandleFunc("GET /tasks", e.handleListTasks)
 	mux.HandleFunc("DELETE /tasks/{id}", e.handleDeleteTask)
@@ -105,6 +108,7 @@ func (e *Engine) handleSubmitTasks(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for _, task := range graph.Tasks {
+		executor.NormalizeTask(task)
 		if _, err := executor.Get(task.Type); err != nil {
 			logger.Warn("unknown task type", "type", task.Type)
 			writeJSON(w, http.StatusBadRequest, models.ErrorResponse{
@@ -126,6 +130,71 @@ func (e *Engine) handleSubmitTasks(w http.ResponseWriter, r *http.Request) {
 		Accepted: len(graph.Tasks),
 		TaskIDs:  ids,
 	})
+}
+
+func (e *Engine) handleMCPListTools(w http.ResponseWriter, r *http.Request) {
+	ex, err := executor.Get("mcp")
+	if err != nil {
+		writeJSON(w, http.StatusServiceUnavailable, models.ErrorResponse{Error: err.Error()})
+		return
+	}
+	tools, err := ex.ListTools(r.Context())
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, models.ErrorResponse{Error: err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"tools": tools})
+}
+
+func (e *Engine) handleMCPCallTool(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		ID       string          `json:"id"`
+		ToolName string          `json:"tool_name"`
+		Input    json.RawMessage `json:"input"`
+		Timeout  int64           `json:"timeout,omitempty"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, models.ErrorResponse{Error: "invalid JSON: " + err.Error()})
+		return
+	}
+	ex, err := executor.Get("mcp")
+	if err != nil {
+		writeJSON(w, http.StatusServiceUnavailable, models.ErrorResponse{Error: err.Error()})
+		return
+	}
+	task := &models.Task{
+		ID:       req.ID,
+		Type:     "mcp",
+		ToolName: req.ToolName,
+		Input:    req.Input,
+		Timeout:  req.Timeout,
+	}
+	res, err := ex.Execute(r.Context(), task)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, models.ErrorResponse{Error: err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusAccepted, res)
+}
+
+func (e *Engine) handleMCPGetTask(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	ex, err := executor.Get("mcp")
+	if err != nil {
+		writeJSON(w, http.StatusServiceUnavailable, models.ErrorResponse{Error: err.Error()})
+		return
+	}
+	mcpExec, ok := ex.(*executor.MCPExecutor)
+	if !ok {
+		writeJSON(w, http.StatusInternalServerError, models.ErrorResponse{Error: "mcp executor type mismatch"})
+		return
+	}
+	res, found := mcpExec.GetHandle(id)
+	if !found {
+		writeJSON(w, http.StatusNotFound, models.ErrorResponse{Error: "handle not found: " + id})
+		return
+	}
+	writeJSON(w, http.StatusOK, res)
 }
 
 func (e *Engine) handleGetTask(w http.ResponseWriter, r *http.Request) {

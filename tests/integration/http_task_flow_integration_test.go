@@ -67,6 +67,60 @@ func TestHTTPTaskFlow_SubmitThenQueryStatus(t *testing.T) {
 	}
 }
 
+func TestMCPHTTPFlow_ListCallPoll(t *testing.T) {
+	executor.RegisterBuiltins()
+	rt := testutil.NewRuntime(t, 2)
+	srv := testutil.NewHTTPServer(t, rt)
+	client := srv.Client()
+
+	resp, err := client.Get(srv.URL + "/mcp/tools")
+	if err != nil {
+		t.Fatalf("GET /mcp/tools error: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("GET /mcp/tools status=%d", resp.StatusCode)
+	}
+	var list map[string]any
+	_ = json.NewDecoder(resp.Body).Decode(&list)
+	_ = resp.Body.Close()
+
+	body := []byte(`{"id":"mcp-1","tool_name":"demo.echo","input":{"hello":"world"}}`)
+	req, err := http.NewRequest(http.MethodPost, srv.URL+"/mcp/call", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	callResp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("POST /mcp/call error: %v", err)
+	}
+	if callResp.StatusCode != http.StatusAccepted {
+		t.Fatalf("POST /mcp/call status=%d", callResp.StatusCode)
+	}
+	var accepted map[string]any
+	_ = json.NewDecoder(callResp.Body).Decode(&accepted)
+	_ = callResp.Body.Close()
+
+	handle, _ := accepted["handle_id"].(string)
+	if handle == "" {
+		t.Fatalf("expected handle_id")
+	}
+	time.Sleep(100 * time.Millisecond)
+	pollResp, err := client.Get(srv.URL + "/mcp/tasks/" + handle)
+	if err != nil {
+		t.Fatalf("GET /mcp/tasks/{id} error: %v", err)
+	}
+	if pollResp.StatusCode != http.StatusOK {
+		t.Fatalf("GET /mcp/tasks/{id} status=%d", pollResp.StatusCode)
+	}
+	var result map[string]any
+	_ = json.NewDecoder(pollResp.Body).Decode(&result)
+	_ = pollResp.Body.Close()
+	if result["status"] != "success" && result["status"] != "running" {
+		t.Fatalf("unexpected mcp task status: %v", result["status"])
+	}
+}
+
 func pollTaskByHTTP(t *testing.T, client *http.Client, baseURL, taskID string, timeout time.Duration) *models.Task {
 	t.Helper()
 	deadline := time.Now().Add(timeout)

@@ -127,6 +127,7 @@ func (s *Scheduler) loop(ctx context.Context) {
 // executeTask 执行单个任务，含超时和重试 / executes a single task with timeout and retry.
 func (s *Scheduler) executeTask(ctx context.Context, task *models.Task) {
 	logger := s.logger.With("task_id", task.ID, "task_type", task.Type)
+	executor.NormalizeTask(task)
 
 	// 获取执行器 / get executor
 	exec, err := executor.Get(task.Type)
@@ -147,7 +148,7 @@ func (s *Scheduler) executeTask(ctx context.Context, task *models.Task) {
 	}
 
 	var lastErr error
-	var result json.RawMessage
+	var execResult *executor.Result
 
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
 		if attempt > 1 {
@@ -169,7 +170,7 @@ func (s *Scheduler) executeTask(ctx context.Context, task *models.Task) {
 			execCtx, cancelFn = context.WithCancel(ctx)
 		}
 
-		result, lastErr = exec.Execute(execCtx, task)
+		execResult, lastErr = exec.Execute(execCtx, task)
 		cancelFn()
 
 		if lastErr == nil {
@@ -182,15 +183,23 @@ func (s *Scheduler) executeTask(ctx context.Context, task *models.Task) {
 
 	if lastErr != nil {
 		logger.Error("task failed after all retries", "error", lastErr)
-		s.completeTask(task, models.StatusFailed, result, lastErr.Error())
+		s.completeTask(task, models.StatusFailed, resultOutput(execResult), lastErr.Error(), execResult)
 	} else {
 		logger.Info("task completed successfully")
-		s.completeTask(task, models.StatusSuccess, result, "")
+		s.completeTask(task, models.StatusSuccess, resultOutput(execResult), "", execResult)
 	}
 }
 
 // completeTask 完成任务并级联触发下游依赖 / completes a task and cascades to downstream dependents.
-func (s *Scheduler) completeTask(task *models.Task, status models.TaskStatus, result json.RawMessage, errMsg string) {
+func (s *Scheduler) completeTask(task *models.Task, status models.TaskStatus, result json.RawMessage, errMsg string, execResult *executor.Result) {
+	if execResult != nil {
+		task.HandleID = execResult.HandleID
+		task.RunStatus = execResult.Status
+		if len(execResult.Progress) > 0 {
+			progress, _ := json.Marshal(execResult.Progress)
+			task.Progress = progress
+		}
+	}
 	s.state.UpdateStatus(task.ID, status, result, errMsg)
 
 	if status == models.StatusSuccess {
@@ -219,6 +228,13 @@ func (s *Scheduler) completeTask(task *models.Task, status models.TaskStatus, re
 			}
 		}
 	}
+}
+
+func resultOutput(r *executor.Result) json.RawMessage {
+	if r == nil {
+		return nil
+	}
+	return r.Output
 }
 
 // cascadeSkip 级联跳过所有下游依赖 / cascades skip to all downstream dependents.

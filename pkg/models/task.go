@@ -23,10 +23,16 @@ type Task struct {
 	ID        string          `json:"id"`
 	Type      string          `json:"type"`
 	Params    json.RawMessage `json:"params,omitempty"`
+	ToolName  string          `json:"tool_name,omitempty"`
+	Input     json.RawMessage `json:"input,omitempty"`
+	Category  string          `json:"execution_category,omitempty"` // mcp | cli-skills | os
 	DependsOn []string        `json:"depends_on,omitempty"`
 	Retry     int             `json:"retry,omitempty"`
 	Timeout   int64           `json:"timeout,omitempty"` // 毫秒 / milliseconds
 	Status    TaskStatus      `json:"status"`
+	RunStatus string          `json:"run_status,omitempty"` // running | success | failed
+	HandleID  string          `json:"handle_id,omitempty"`
+	Progress  json.RawMessage `json:"progress,omitempty"`
 	Result    json.RawMessage `json:"result,omitempty"`
 	Error     string          `json:"error,omitempty"`
 	CreatedAt time.Time       `json:"created_at"`

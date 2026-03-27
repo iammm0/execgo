@@ -99,6 +99,7 @@ func (s *Server) SubmitTasks(ctx context.Context, req *execgov1.TaskGraph) (*exe
 
 	// Validate executor types early (same behavior as HTTP layer).
 	for _, task := range graph.Tasks {
+		executor.NormalizeTask(task)
 		if _, err := executor.Get(task.Type); err != nil {
 			return nil, status.Errorf(codes.InvalidArgument, "unknown task type %q (available: %v)", task.Type, executor.RegisteredTypes())
 		}

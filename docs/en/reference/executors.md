@@ -1,16 +1,12 @@
 # Executors & Parameters (Index)
 
-ExecGo chooses an executor based on `task.type`. Each executor defines the structure of `task.params`.
+ExecGo V2 chooses an executor category based on `task.type`, then a tool by `task.tool_name`.
 
-Built-in executor types registered by `executor.RegisterBuiltins()`:
+Built-in executor categories registered by `executor.RegisterBuiltins()`:
 
-- `http`
-- `shell`
-- `file`
-- `sleep`
-- `dns`
-- `tcp`
-- `noop`
+- `os` (tools: `shell`, `file`, `dns`, `tcp`, `sleep`, `noop`, `http`)
+- `mcp`
+- `cli-skills`
 
 ## Full details (Chinese)
 
@@ -20,12 +16,18 @@ Built-in executor types registered by `executor.RegisterBuiltins()`:
 ## Quick mapping (how to think)
 
 - Create a `Task` with:
-  - `type`: one of the executor types above
-  - `params`: executor-specific JSON object
+  - `type`: one of `os | mcp | cli-skills`
+  - `tool_name`: tool name inside that category
+  - `params`/`input`: tool-specific JSON object
 - Dependency edges in your DAG become `depends_on: [...]`
 - Retry/timeout are handled by the scheduler per task (not by executors)
 
 ## Custom executors (optional)
 
-ExecGo supports extending executors via a registry (your app registers new executors at startup). See the Chinese reference for implementation details.
+ExecGo supports extending executors via the V2 registry + `ExecutorExtension` hooks (`ExecuteMethod`, `BeforeExecute`, `AfterExecute`, `OnError`).
+
+MCP HTTP endpoints:
+- `GET /mcp/tools`
+- `POST /mcp/call`
+- `GET /mcp/tasks/{id}`
 

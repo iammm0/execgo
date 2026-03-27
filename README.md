@@ -21,7 +21,7 @@
 | **Task DSL** | 严格的任务契约：支持 id, type, params, depends_on, retry, timeout |
 | **DAG Scheduling** | 基于依赖图的任务编排，Kahn 算法环检测 |
 | **Concurrent Execution** | goroutine + channel 并发模型，信号量控制最大并发 |
-| **Pluggable Executors** | 内置 http / shell / file / sleep / dns / tcp / noop，注册表机制易于扩展 |
+| **Pluggable Executors V2** | 内置 `os` / `mcp` / `cli-skills` 三大类；`os` 内含 shell/file/dns/tcp/sleep/noop/http 工具 |
 | **Retry & Timeout** | 指数退避重试 + context 超时控制 |
 | **State Persistence** | 内存存储 + JSON 文件定期持久化，崩溃恢复 |
 | **Observability** | 结构化 JSON 日志 (slog) + traceID 追踪 + /metrics 端点 |
@@ -44,8 +44,8 @@
 │               Scheduler (DAG)                       │
 │  readyQueue(chan) │ semaphore │ dependency counter   │
 ├──────────┬──────────┬──────────┬────────────────────┤
-│ HTTP     │ Shell    │ File     │ ... (extensible)   │
-│ Executor │ Executor │ Executor │                    │
+│ OS       │ MCP      │ CLI+Skill│ ... (extensible)   │
+│ Category │ Category │ Category │                    │
 ├──────────┴──────────┴──────────┴────────────────────┤
 │              Store (store.Store)                    │
 │   jsonfile (default) │ sqlite │ + Redis (contrib)  │
@@ -305,8 +305,9 @@ execgo/
 ```json
 {
   "id":         "unique-task-id",
-  "type":       "http | shell | file | sleep | dns | tcp | noop",
-  "params":     { /* 类型相关参数 / type-specific params */ },
+  "type":       "os | mcp | cli-skills",
+  "tool_name":  "shell | file | dns | tcp | sleep | noop | http | ...",
+  "params":     { /* 工具相关参数 / tool-specific params */ },
   "depends_on": ["other-task-id"],
   "retry":      3,
   "timeout":    5000,
@@ -315,6 +316,8 @@ execgo/
 ```
 
 ### 内置执行器参数 | Built-in Executor Params
+
+V2 分类执行建议使用 `type=os + tool_name=*`。同时保留 legacy 输入兼容：`type=shell/file/...` 会自动映射到 `os` 分类。
 
 **HTTP Executor:**
 ```json
@@ -400,16 +403,27 @@ import (
 
 type MyExecutor struct{}
 
-func (e *MyExecutor) Type() string { return "my_type" }
+func (e *MyExecutor) Name() string     { return "my_type" }
+func (e *MyExecutor) Category() string { return "custom" }
 
-func (e *MyExecutor) Execute(ctx context.Context, task *models.Task) (json.RawMessage, error) {
-    return json.Marshal(map[string]any{"result": "ok"})
+func (e *MyExecutor) Execute(ctx context.Context, task *models.Task) (*executor.Result, error) {
+    out, _ := json.Marshal(map[string]any{"result": "ok"})
+    return &executor.Result{Status: "success", Output: out}, nil
 }
+func (e *MyExecutor) ListTools(ctx context.Context) ([]executor.Tool, error) { return nil, nil }
+func (e *MyExecutor) HealthCheck() error { return nil }
+func (e *MyExecutor) Shutdown(ctx context.Context) error { return nil }
 
 func init() {
     executor.Register(&MyExecutor{})
 }
 ```
+
+### MCP HTTP endpoints (V2)
+
+- `GET /mcp/tools`: list MCP tools.
+- `POST /mcp/call`: call MCP tool, returns `handle_id`.
+- `GET /mcp/tasks/{id}`: poll MCP task handle status/result.
 
 ### 作为库嵌入 | Embedding as a library
 

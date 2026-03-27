@@ -19,26 +19,34 @@ type flakyExecutor struct {
 	attempts  atomic.Int32
 }
 
-func (e *flakyExecutor) Type() string { return e.taskType }
+func (e *flakyExecutor) Name() string     { return e.taskType }
+func (e *flakyExecutor) Category() string { return "test" }
 
-func (e *flakyExecutor) Execute(ctx context.Context, task *models.Task) (json.RawMessage, error) {
+func (e *flakyExecutor) Execute(ctx context.Context, task *models.Task) (*executor.Result, error) {
 	_ = task
 	n := e.attempts.Add(1)
 	if n <= e.failTimes {
 		return nil, fmt.Errorf("planned failure %d", n)
 	}
-	return json.RawMessage(`{"ok":true}`), nil
+	return &executor.Result{Status: "success", Output: json.RawMessage(`{"ok":true}`)}, nil
 }
+func (e *flakyExecutor) ListTools(ctx context.Context) ([]executor.Tool, error) { return nil, nil }
+func (e *flakyExecutor) HealthCheck() error                                      { return nil }
+func (e *flakyExecutor) Shutdown(ctx context.Context) error                      { return nil }
 
 type failExecutor struct{ taskType string }
 
-func (e *failExecutor) Type() string { return e.taskType }
+func (e *failExecutor) Name() string     { return e.taskType }
+func (e *failExecutor) Category() string { return "test" }
 
-func (e *failExecutor) Execute(ctx context.Context, task *models.Task) (json.RawMessage, error) {
+func (e *failExecutor) Execute(ctx context.Context, task *models.Task) (*executor.Result, error) {
 	_ = ctx
 	_ = task
-	return nil, fmt.Errorf("always fail")
+	return &executor.Result{Status: "failed"}, fmt.Errorf("always fail")
 }
+func (e *failExecutor) ListTools(ctx context.Context) ([]executor.Tool, error) { return nil, nil }
+func (e *failExecutor) HealthCheck() error                                      { return nil }
+func (e *failExecutor) Shutdown(ctx context.Context) error                      { return nil }
 
 func TestScheduler_RetryThenSuccess(t *testing.T) {
 	rt := testutil.NewRuntime(t, 2)
