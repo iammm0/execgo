@@ -21,11 +21,11 @@ type Scheduler struct {
 	metrics *observability.Metrics
 	logger  *slog.Logger
 
-	readyQueue chan *models.Task          // 就绪队列 / ready queue
-	semaphore  chan struct{}              // 并发信号量 / concurrency semaphore
-	depCount   map[string]int             // 剩余依赖计数 / remaining dependency count
-	dependents map[string][]string        // 反向依赖图 / reverse dependency graph
-	mu         sync.Mutex                 // 保护 depCount 和 dependents / protects depCount & dependents
+	readyQueue chan *models.Task   // 就绪队列 / ready queue
+	semaphore  chan struct{}       // 并发信号量 / concurrency semaphore
+	depCount   map[string]int      // 剩余依赖计数 / remaining dependency count
+	dependents map[string][]string // 反向依赖图 / reverse dependency graph
+	mu         sync.Mutex          // 保护 depCount 和 dependents / protects depCount & dependents
 
 	wg     sync.WaitGroup
 	cancel context.CancelFunc
@@ -133,7 +133,7 @@ func (s *Scheduler) executeTask(ctx context.Context, task *models.Task) {
 	exec, err := executor.Get(task.Type)
 	if err != nil {
 		logger.Error("executor not found", "error", err)
-		s.completeTask(task, models.StatusFailed, nil, err.Error())
+		s.completeTask(task, models.StatusFailed, nil, err.Error(), nil)
 		return
 	}
 
