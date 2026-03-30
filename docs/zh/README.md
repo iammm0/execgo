@@ -10,6 +10,9 @@
 
 ## 文档导航
 
+### 0) 项目定位与路线
+- [Agent-First 执行内核路线图](./agent-kernel-roadmap.md)
+
 ### 1) 上层编排层如何采用 ExecGo
 - [Orchestrator：上层如何映射 DAG -> TaskGraph](./orchestrator/README.md)
 
@@ -34,4 +37,3 @@
 ## 版本与兼容性
 
 文档内容以当前仓库版本的 ExecGo 行为为准。若你升级 ExecGo 版本，建议优先阅读对应的 `TaskGraph` 提交/校验规则与执行器参数变更说明。
-

@@ -1,6 +1,6 @@
-# ExecGo — Minimal AI Execution Engine
+# ExecGo — Agent Action Harness
 
-> 极简 AI 执行引擎 | A production-grade single-node execution kernel for AI agents
+> 面向 AI Agent 的执行内核 | An agent-first execution kernel and action harness
 
 [![Go](https://img.shields.io/badge/Go-1.22+-00ADD8?logo=go)](https://go.dev)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
@@ -13,6 +13,11 @@
 **ExecGo** 的核心模块（`github.com/iammm0/execgo`）仅依赖 Go 标准库；可选能力（SQLite 持久化、Redis 读穿缓存）放在独立子模块 `contrib/*` 中，避免强绑第三方依赖。
 
 **ExecGo**’s core module uses only the Go standard library. Optional features (SQLite persistence, Redis read-through cache) live in separate `contrib/*` submodules so consumers can opt in without pulling drivers they do not need.
+
+**定位补充 | Positioning note**
+
+ExecGo 更适合被理解为一个面向 AI Agent 的执行内核（execution kernel / action harness），而不是一个纯通用工作流引擎。
+它的职责是把上层 agent 的决策，可靠、安全、可观测地映射到真实工具与运行环境。
 
 ### 核心特性 | Key Features
 

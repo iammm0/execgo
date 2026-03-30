@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/iammm0/execgo/pkg/models"
 )
@@ -44,6 +45,7 @@ func (e *OSExecutor) Name() string     { return "os" }
 func (e *OSExecutor) Category() string { return "os" }
 
 func (e *OSExecutor) Execute(ctx context.Context, task *models.Task) (*Result, error) {
+	startedAt := time.Now()
 	tool := strings.TrimSpace(task.ToolName)
 	if tool == "" {
 		tool = strings.TrimSpace(task.Type)
@@ -56,13 +58,17 @@ func (e *OSExecutor) Execute(ctx context.Context, task *models.Task) (*Result, e
 		task.Params = task.Input
 	}
 	raw, err := fn(ctx, task)
+	finishedAt := time.Now()
 	res := &Result{
-		TaskID: task.ID,
-		Status: "success",
-		Output: raw,
+		TaskID:     task.ID,
+		Status:     models.RuntimeSuccess,
+		Output:     raw,
+		StartedAt:  &startedAt,
+		FinishedAt: &finishedAt,
+		DurationMS: finishedAt.Sub(startedAt).Milliseconds(),
 	}
 	if err != nil {
-		res.Status = "failed"
+		res.Status = models.RuntimeFailed
 		return res, err
 	}
 	return res, nil
@@ -81,6 +87,5 @@ func (e *OSExecutor) ListTools(ctx context.Context) ([]Tool, error) {
 	}, nil
 }
 
-func (e *OSExecutor) HealthCheck() error            { return nil }
+func (e *OSExecutor) HealthCheck() error                 { return nil }
 func (e *OSExecutor) Shutdown(ctx context.Context) error { _ = ctx; return nil }
-

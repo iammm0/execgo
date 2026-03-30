@@ -29,6 +29,12 @@ type Executor interface {
 	Shutdown(ctx context.Context) error
 }
 
+// HandleReader is an optional capability for executors that expose asynchronous
+// task handles and allow polling for terminal runtime state.
+type HandleReader interface {
+	GetHandle(handleID string) (*Result, bool)
+}
+
 type Tool struct {
 	Name        string            `json:"name"`
 	Category    string            `json:"category"`
@@ -44,11 +50,17 @@ type ProgressEvent struct {
 }
 
 type Result struct {
-	TaskID   string          `json:"task_id,omitempty"`
-	Status   string          `json:"status"` // success | failed | running
-	HandleID string          `json:"handle_id,omitempty"`
-	Output   json.RawMessage `json:"output,omitempty"`
-	Progress []ProgressEvent `json:"progress,omitempty"`
+	TaskID     string               `json:"task_id,omitempty"`
+	Status     models.RuntimeStatus `json:"status"`
+	HandleID   string               `json:"handle_id,omitempty"`
+	Output     json.RawMessage      `json:"output,omitempty"`
+	Details    json.RawMessage      `json:"details,omitempty"`
+	Progress   []ProgressEvent      `json:"progress,omitempty"`
+	StartedAt  *time.Time           `json:"started_at,omitempty"`
+	FinishedAt *time.Time           `json:"finished_at,omitempty"`
+	DurationMS int64                `json:"duration_ms,omitempty"`
+	Attempt    int                  `json:"attempt,omitempty"`
+	Error      *models.RuntimeError `json:"error,omitempty"`
 }
 
 // ----------------------------------------------------------------

@@ -65,6 +65,18 @@ func TestHTTPTaskFlow_SubmitThenQueryStatus(t *testing.T) {
 	if task.Status != models.StatusSuccess {
 		t.Fatalf("task second status=%s error=%s", task.Status, task.Error)
 	}
+	if task.Runtime == nil {
+		t.Fatal("expected runtime envelope in HTTP task payload")
+	}
+	if task.Runtime.Status != models.RuntimeSuccess {
+		t.Fatalf("expected runtime success, got %s", task.Runtime.Status)
+	}
+	if task.RunStatus != string(models.RuntimeSuccess) {
+		t.Fatalf("expected run_status=%q, got %q", models.RuntimeSuccess, task.RunStatus)
+	}
+	if len(task.Result) == 0 {
+		t.Fatal("expected legacy result field to remain populated for compatibility")
+	}
 }
 
 func TestMCPHTTPFlow_ListCallPoll(t *testing.T) {
@@ -116,7 +128,7 @@ func TestMCPHTTPFlow_ListCallPoll(t *testing.T) {
 	var result map[string]any
 	_ = json.NewDecoder(pollResp.Body).Decode(&result)
 	_ = pollResp.Body.Close()
-	if result["status"] != "success" && result["status"] != "running" {
+	if result["status"] != "success" && result["status"] != "running" && result["status"] != "accepted" {
 		t.Fatalf("unexpected mcp task status: %v", result["status"])
 	}
 }
@@ -141,4 +153,3 @@ func pollTaskByHTTP(t *testing.T, client *http.Client, baseURL, taskID string, t
 	t.Fatalf("task %s not terminal within %v", taskID, timeout)
 	return nil
 }
-

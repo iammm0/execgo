@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/iammm0/execgo/pkg/models"
 )
@@ -33,6 +34,7 @@ func (e *CLISkillsExecutor) Execute(ctx context.Context, task *models.Task) (*Re
 	if err := e.ext.BeforeExecute(ctx, task); err != nil {
 		return nil, err
 	}
+	startedAt := time.Now()
 
 	var in CLISkillInput
 	raw := task.Input
@@ -48,9 +50,13 @@ func (e *CLISkillsExecutor) Execute(ctx context.Context, task *models.Task) (*Re
 
 	cmd := exec.CommandContext(ctx, in.Command, in.Args...)
 	out, err := cmd.CombinedOutput()
+	finishedAt := time.Now()
 	res := &Result{
-		TaskID: task.ID,
-		Status: "success",
+		TaskID:     task.ID,
+		Status:     models.RuntimeSuccess,
+		StartedAt:  &startedAt,
+		FinishedAt: &finishedAt,
+		DurationMS: finishedAt.Sub(startedAt).Milliseconds(),
 		Output: mustJSONMarshal(map[string]any{
 			"command": in.Command,
 			"args":    in.Args,
@@ -58,7 +64,7 @@ func (e *CLISkillsExecutor) Execute(ctx context.Context, task *models.Task) (*Re
 		}),
 	}
 	if err != nil {
-		res.Status = "failed"
+		res.Status = models.RuntimeFailed
 		_ = e.ext.OnError(ctx, err, task)
 		return res, fmt.Errorf("cli skill command failed: %w", err)
 	}
@@ -78,11 +84,10 @@ func (e *CLISkillsExecutor) ListTools(ctx context.Context) ([]Tool, error) {
 	}, nil
 }
 
-func (e *CLISkillsExecutor) HealthCheck() error            { return nil }
+func (e *CLISkillsExecutor) HealthCheck() error                 { return nil }
 func (e *CLISkillsExecutor) Shutdown(ctx context.Context) error { _ = ctx; return nil }
 
 func mustJSONMarshal(v any) json.RawMessage {
 	b, _ := json.Marshal(v)
 	return b
 }
-

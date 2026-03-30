@@ -5,6 +5,8 @@ package scheduler
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"log/slog"
 	"sync"
 	"time"
@@ -30,6 +32,8 @@ type Scheduler struct {
 	wg     sync.WaitGroup
 	cancel context.CancelFunc
 }
+
+const asyncHandlePollInterval = 100 * time.Millisecond
 
 // New 创建调度器 / creates a new scheduler.
 func New(st store.Store, metrics *observability.Metrics, logger *slog.Logger, maxConcurrency int) *Scheduler {
@@ -133,11 +137,17 @@ func (s *Scheduler) executeTask(ctx context.Context, task *models.Task) {
 	exec, err := executor.Get(task.Type)
 	if err != nil {
 		logger.Error("executor not found", "error", err)
-		s.completeTask(task, models.StatusFailed, nil, err.Error(), nil)
+		s.completeTask(task, models.StatusFailed, nil, err, nil, time.Time{}, time.Now(), 0)
 		return
 	}
 
 	// 更新状态为 running / mark as running
+	runStartedAt := time.Now()
+	task.RunStatus = string(models.RuntimeRunning)
+	task.Runtime = &models.RuntimeResult{
+		Status:    models.RuntimeRunning,
+		StartedAt: timePtr(runStartedAt),
+	}
 	s.state.UpdateStatus(task.ID, models.StatusRunning, nil, "")
 	s.metrics.TasksRunning.Add(1)
 	logger.Info("task started")
@@ -149,8 +159,10 @@ func (s *Scheduler) executeTask(ctx context.Context, task *models.Task) {
 
 	var lastErr error
 	var execResult *executor.Result
+	attemptsUsed := 0
 
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		attemptsUsed = attempt
 		if attempt > 1 {
 			// 指数退避: 100ms * 2^(attempt-2) / exponential backoff
 			backoff := time.Duration(100*(1<<(attempt-2))) * time.Millisecond
@@ -171,6 +183,15 @@ func (s *Scheduler) executeTask(ctx context.Context, task *models.Task) {
 		}
 
 		execResult, lastErr = exec.Execute(execCtx, task)
+		if execResult != nil && execResult.Attempt == 0 {
+			execResult.Attempt = attempt
+		}
+		if execResult != nil {
+			s.applyInFlightRuntime(task, execResult, runStartedAt, attempt)
+		}
+		if lastErr == nil && execResult != nil && !execResult.Status.IsTerminal() {
+			execResult, lastErr = s.awaitRuntimeResult(execCtx, exec, execResult, logger, runStartedAt, attempt, task)
+		}
 		cancelFn()
 
 		if lastErr == nil {
@@ -180,21 +201,30 @@ func (s *Scheduler) executeTask(ctx context.Context, task *models.Task) {
 	}
 
 	s.metrics.TasksRunning.Add(-1)
+	finishedAt := time.Now()
 
 	if lastErr != nil {
 		logger.Error("task failed after all retries", "error", lastErr)
-		s.completeTask(task, models.StatusFailed, resultOutput(execResult), lastErr.Error(), execResult)
+		s.completeTask(task, models.StatusFailed, resultOutput(execResult), lastErr, execResult, runStartedAt, finishedAt, attemptsUsed)
 	} else {
 		logger.Info("task completed successfully")
-		s.completeTask(task, models.StatusSuccess, resultOutput(execResult), "", execResult)
+		s.completeTask(task, models.StatusSuccess, resultOutput(execResult), nil, execResult, runStartedAt, finishedAt, attemptsUsed)
 	}
 }
 
 // completeTask 完成任务并级联触发下游依赖 / completes a task and cascades to downstream dependents.
-func (s *Scheduler) completeTask(task *models.Task, status models.TaskStatus, result json.RawMessage, errMsg string, execResult *executor.Result) {
+func (s *Scheduler) completeTask(task *models.Task, status models.TaskStatus, result json.RawMessage, runErr error, execResult *executor.Result, startedAt, finishedAt time.Time, attempt int) {
+	runtime := buildRuntimeResult(status, execResult, runErr, startedAt, finishedAt, attempt)
+	errMsg := ""
+	if runtime != nil {
+		task.Runtime = runtime
+		task.RunStatus = string(runtime.Status)
+		task.HandleID = runtime.HandleID
+		if runtime.Error != nil {
+			errMsg = runtime.Error.Message
+		}
+	}
 	if execResult != nil {
-		task.HandleID = execResult.HandleID
-		task.RunStatus = execResult.Status
 		if len(execResult.Progress) > 0 {
 			progress, _ := json.Marshal(execResult.Progress)
 			task.Progress = progress
@@ -215,6 +245,10 @@ func (s *Scheduler) completeTask(task *models.Task, status models.TaskStatus, re
 	for _, childID := range children {
 		if status == models.StatusFailed {
 			// 依赖失败 → 跳过下游 / dependency failed → skip downstream
+			if child, ok := s.state.Get(childID); ok {
+				child.Runtime = nil
+				child.RunStatus = ""
+			}
 			s.state.UpdateStatus(childID, models.StatusSkipped, nil, "dependency "+task.ID+" failed")
 			s.metrics.TasksFailed.Add(1)
 			s.cascadeSkip(childID)
@@ -239,8 +273,224 @@ func resultOutput(r *executor.Result) json.RawMessage {
 
 // cascadeSkip 级联跳过所有下游依赖 / cascades skip to all downstream dependents.
 func (s *Scheduler) cascadeSkip(taskID string) {
+	if task, ok := s.state.Get(taskID); ok {
+		task.Runtime = nil
+		task.RunStatus = ""
+	}
 	for _, childID := range s.dependents[taskID] {
 		s.state.UpdateStatus(childID, models.StatusSkipped, nil, "dependency "+taskID+" skipped")
 		s.cascadeSkip(childID)
 	}
+}
+
+func buildRuntimeResult(status models.TaskStatus, execResult *executor.Result, runErr error, startedAt, finishedAt time.Time, attempt int) *models.RuntimeResult {
+	if execResult == nil && runErr == nil {
+		return nil
+	}
+
+	runtime := &models.RuntimeResult{
+		Status: runtimeStatusFromTask(status, runErr),
+	}
+	if execResult != nil {
+		if execResult.Status != "" {
+			runtime.Status = execResult.Status
+		}
+		runtime.HandleID = execResult.HandleID
+		runtime.Attempt = execResult.Attempt
+		runtime.DurationMS = execResult.DurationMS
+		runtime.Output = cloneRaw(execResult.Output)
+		runtime.Details = cloneRaw(execResult.Details)
+		runtime.Error = cloneRuntimeError(execResult.Error)
+		runtime.StartedAt = cloneTime(execResult.StartedAt)
+		runtime.FinishedAt = cloneTime(execResult.FinishedAt)
+	}
+	if runtime.Attempt == 0 {
+		runtime.Attempt = attempt
+	}
+	if runtime.StartedAt == nil && !startedAt.IsZero() {
+		runtime.StartedAt = timePtr(startedAt)
+	}
+	if runtime.Status.IsTerminal() && runtime.FinishedAt == nil && !finishedAt.IsZero() {
+		runtime.FinishedAt = timePtr(finishedAt)
+	}
+	if runtime.DurationMS == 0 && runtime.StartedAt != nil && runtime.FinishedAt != nil {
+		runtime.DurationMS = runtime.FinishedAt.Sub(*runtime.StartedAt).Milliseconds()
+	}
+	if runtime.Error == nil && runErr != nil {
+		runtime.Error = normalizeRuntimeError(runErr)
+	}
+	return runtime
+}
+
+func runtimeStatusFromTask(status models.TaskStatus, runErr error) models.RuntimeStatus {
+	switch status {
+	case models.StatusSuccess:
+		return models.RuntimeSuccess
+	case models.StatusRunning:
+		return models.RuntimeRunning
+	case models.StatusFailed:
+		if errors.Is(runErr, context.Canceled) {
+			return models.RuntimeCancelled
+		}
+		return models.RuntimeFailed
+	default:
+		return models.RuntimeFailed
+	}
+}
+
+func normalizeRuntimeError(err error) *models.RuntimeError {
+	if err == nil {
+		return nil
+	}
+	switch {
+	case errors.Is(err, context.DeadlineExceeded):
+		return &models.RuntimeError{
+			Code:      models.ErrorTimeout,
+			Message:   err.Error(),
+			Retryable: true,
+			Source:    "scheduler",
+		}
+	case errors.Is(err, context.Canceled):
+		return &models.RuntimeError{
+			Code:    models.ErrorCancelled,
+			Message: err.Error(),
+			Source:  "scheduler",
+		}
+	default:
+		return &models.RuntimeError{
+			Code:    models.ErrorExternalFailure,
+			Message: err.Error(),
+			Source:  "executor",
+		}
+	}
+}
+
+func cloneRaw(raw json.RawMessage) json.RawMessage {
+	if len(raw) == 0 {
+		return nil
+	}
+	cp := make(json.RawMessage, len(raw))
+	copy(cp, raw)
+	return cp
+}
+
+func cloneRuntimeError(err *models.RuntimeError) *models.RuntimeError {
+	if err == nil {
+		return nil
+	}
+	cp := *err
+	return &cp
+}
+
+func cloneTime(t *time.Time) *time.Time {
+	if t == nil {
+		return nil
+	}
+	cp := *t
+	return &cp
+}
+
+func timePtr(t time.Time) *time.Time {
+	return &t
+}
+
+func (s *Scheduler) awaitRuntimeResult(
+	ctx context.Context,
+	exec executor.Executor,
+	initial *executor.Result,
+	logger *slog.Logger,
+	startedAt time.Time,
+	attempt int,
+	task *models.Task,
+) (*executor.Result, error) {
+	if initial == nil {
+		return nil, fmt.Errorf("async runtime wait requires initial result")
+	}
+	if initial.HandleID == "" {
+		return initial, fmt.Errorf("non-terminal runtime result missing handle_id")
+	}
+
+	reader, ok := exec.(executor.HandleReader)
+	if !ok {
+		return initial, fmt.Errorf("executor %q returned non-terminal status %q without handle polling support", exec.Name(), initial.Status)
+	}
+
+	ticker := time.NewTicker(asyncHandlePollInterval)
+	defer ticker.Stop()
+
+	current := initial
+	for {
+		if current != nil {
+			s.applyInFlightRuntime(task, current, startedAt, attempt)
+			if current.Status.IsTerminal() {
+				return current, runtimeResultError(current)
+			}
+		}
+
+		select {
+		case <-ctx.Done():
+			logger.Warn("async task wait interrupted", "handle_id", initial.HandleID, "error", ctx.Err())
+			return current, ctx.Err()
+		case <-ticker.C:
+			next, found := reader.GetHandle(initial.HandleID)
+			if !found {
+				logger.Warn("async handle not found during polling", "handle_id", initial.HandleID)
+				return current, fmt.Errorf("handle not found: %s", initial.HandleID)
+			}
+			if next.Attempt == 0 {
+				next.Attempt = attempt
+			}
+			current = next
+		}
+	}
+}
+
+func runtimeResultError(res *executor.Result) error {
+	if res == nil {
+		return nil
+	}
+	switch res.Status {
+	case models.RuntimeSuccess:
+		return nil
+	case models.RuntimeCancelled:
+		if res.Error != nil && res.Error.Message != "" {
+			return canceledError{message: res.Error.Message}
+		}
+		return canceledError{message: "task cancelled"}
+	case models.RuntimeFailed:
+		if res.Error != nil && res.Error.Message != "" {
+			return errors.New(res.Error.Message)
+		}
+		return errors.New("task failed")
+	default:
+		return nil
+	}
+}
+
+func (s *Scheduler) applyInFlightRuntime(task *models.Task, execResult *executor.Result, startedAt time.Time, attempt int) {
+	if execResult == nil {
+		return
+	}
+	runtime := buildRuntimeResult(models.StatusRunning, execResult, nil, startedAt, time.Time{}, attempt)
+	if runtime == nil {
+		return
+	}
+	task.Runtime = runtime
+	task.RunStatus = string(runtime.Status)
+	task.HandleID = runtime.HandleID
+	if len(execResult.Progress) > 0 {
+		progress, _ := json.Marshal(execResult.Progress)
+		task.Progress = progress
+	}
+}
+
+type canceledError struct {
+	message string
+}
+
+func (e canceledError) Error() string {
+	if e.message != "" {
+		return e.message
+	}
+	return "task cancelled"
 }
