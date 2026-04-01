@@ -1,9 +1,19 @@
 name: Release
 
+# 两种入口：
+# 1) 推送 v* 标签（本地 git tag && git push）：走完整校验、构建与 GitHub Release。
+# 2) workflow_dispatch：在 Actions 里输入版本号，对当前默认分支 HEAD 自动打标签并发布
+#    （避免仅用 GITHUB_TOKEN git push tag 时不触发工作流的 GitHub 限制）。
 on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "SemVer 标签，例如 v1.0.1（发布前请已更新 pkg/version/version.go）"
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -14,9 +24,38 @@ env:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Resolve release version
+        id: meta
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            v="${{ github.event.inputs.version }}"
+          else
+            v="${GITHUB_REF_NAME}"
+          fi
+          v="${v#"${v%%[![:space:]]*}"}"
+          v="${v%"${v##*[![:space:]]}"}"
+          if [[ ! "${v}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::无效版本：须为 vMAJOR.MINOR.PATCH（当前：${v}）"
+            exit 1
+          fi
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            if git ls-remote --tags origin "refs/tags/${v}" | grep -q .; then
+              echo "::error::远程已存在标签 ${v}，请换用新版本号"
+              exit 1
+            fi
+          fi
+          echo "version=${v}" >> "${GITHUB_OUTPUT}"
+          echo "Resolved release version: ${v}"
 
       - name: Setup Go
         uses: actions/setup-go@v6
@@ -65,6 +104,8 @@ jobs:
           cache: true
 
       - name: Build Binary
+        env:
+          RELEASE_VERSION: ${{ needs.verify.outputs.version }}
         run: |
           set -euo pipefail
           mkdir -p dist
@@ -72,7 +113,7 @@ jobs:
           if [ "${{ matrix.goos }}" = "windows" ]; then
             ext=".exe"
           fi
-          bin="execgo_${{ github.ref_name }}_${{ matrix.goos }}_${{ matrix.goarch }}${ext}"
+          bin="execgo_${RELEASE_VERSION}_${{ matrix.goos }}_${{ matrix.goarch }}${ext}"
           CGO_ENABLED=0 GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} \
             go build -trimpath -o "dist/${bin}" ./cmd/execgo
 
@@ -84,7 +125,7 @@ jobs:
           if-no-files-found: error
 
   publish:
-    needs: build
+    needs: [verify, build]
     runs-on: ubuntu-latest
     steps:
       - name: Download Build Artifacts
@@ -103,7 +144,7 @@ jobs:
         id: release_notes
         run: |
           set -euo pipefail
-          notes=".github/release-notes/${GITHUB_REF_NAME}.md"
+          notes=".github/release-notes/${{ needs.verify.outputs.version }}.md"
           if [ -f "${notes}" ]; then
             echo "path=${notes}" >> "${GITHUB_OUTPUT}"
           else
@@ -113,6 +154,8 @@ jobs:
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ needs.verify.outputs.version }}
+          target_commitish: ${{ github.sha }}
           body_path: ${{ steps.release_notes.outputs.path }}
           files: |
             dist/*
