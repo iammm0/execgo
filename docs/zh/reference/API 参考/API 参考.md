@@ -218,7 +218,7 @@ API-->>Client : "202 Accepted + SubmitResponse"
     - uptime: 字符串，运行时长（秒）
 - 示例响应：
   - status: "ok"
-  - version: "v0.1.0"
+  - version: "v1.0.0"
   - uptime: "120s"
 
 章节来源

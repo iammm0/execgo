@@ -13,6 +13,7 @@ import (
 	"github.com/iammm0/execgo/pkg/observability"
 	"github.com/iammm0/execgo/pkg/scheduler"
 	"github.com/iammm0/execgo/pkg/store"
+	execgoversion "github.com/iammm0/execgo/pkg/version"
 )
 
 // Middleware HTTP 中间件类型 / HTTP middleware signature.
@@ -224,7 +225,7 @@ func (e *Engine) handleDeleteTask(w http.ResponseWriter, r *http.Request) {
 func (e *Engine) handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, models.HealthResponse{
 		Status:  "ok",
-		Version: "v0.1.0",
+		Version: execgoversion.Current,
 		Uptime:  time.Since(e.startTime).Round(time.Second).String(),
 	})
 }

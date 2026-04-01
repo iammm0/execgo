@@ -300,7 +300,7 @@ execgo-ts-client/
 ```json
 {
   "name": "execgo-ts-client",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "start": "tsx src/index.ts"
@@ -339,4 +339,3 @@ npm run start
 
 - 设置 `EXECGO_URL=http://localhost:8080`（或修改代码的 baseURL）
 - ExecGo 服务已经在对端启动（`/health` 返回 ok）
-

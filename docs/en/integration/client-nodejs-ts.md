@@ -300,7 +300,7 @@ execgo-ts-client/
 ```json
 {
   "name": "execgo-ts-client",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "start": "tsx src/index.ts"
@@ -339,4 +339,3 @@ At runtime:
 
 - set `EXECGO_URL=http://localhost:8080` (or change baseURL in code)
 - make sure ExecGo is running and `/health` returns `ok`
-

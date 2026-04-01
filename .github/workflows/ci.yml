@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Test Root Module
+        run: |
+          go version
+          go test ./... -count=1
+
+      - name: Test Submodules
+        run: |
+          set -euo pipefail
+          for dir in contrib/grpcapi contrib/sqlite contrib/rediscache examples/fullserver; do
+            echo "==> testing ${dir}"
+            (
+              cd "${dir}"
+              GOWORK=off go test ./... -count=1
+            )
+          done

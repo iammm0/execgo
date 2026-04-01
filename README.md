@@ -149,6 +149,19 @@ curl http://localhost:8080/metrics
 ```
 
 ---
+## 发布流程 | Release Flow
+
+- CI（`.github/workflows/ci.yml`）：在 `main` push 和 PR 上执行根模块与子模块全量测试。
+- Release（`.github/workflows/release.yml`）：当推送 `v*` tag 时自动执行测试、跨平台构建、生成校验和，并发布 GitHub Release 资产。
+
+示例（发布 `v1.0.0`）：
+
+```bash
+git tag -a v1.0.0 -m "Release v1.0.0"
+git push origin v1.0.0
+```
+
+---
 ## 文档入口 | Documentation
 
 完整文档位于仓库下的 `docs/` 目录，包含：
@@ -446,9 +459,9 @@ func init() {
 
 ```go
 require (
-    github.com/iammm0/execgo v0.x.y                    // 核心：scheduler、httpserver、jsonfile 等
-    github.com/iammm0/execgo/contrib/sqlite v0.x.y     // 可选
-    github.com/iammm0/execgo/contrib/rediscache v0.x.y // 可选
+    github.com/iammm0/execgo v1.x.y                    // 核心：scheduler、httpserver、jsonfile 等
+    github.com/iammm0/execgo/contrib/sqlite v1.x.y     // 可选
+    github.com/iammm0/execgo/contrib/rediscache v1.x.y // 可选
 )
 ```
 
