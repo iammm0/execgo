@@ -153,6 +153,7 @@ curl http://localhost:8080/metrics
 
 - CI（`.github/workflows/ci.yml`）：在 `main` push 和 PR 上执行根模块与子模块全量测试。
 - Release（`.github/workflows/release.yml`）：当推送 `v*` tag 时自动执行测试、跨平台构建、生成校验和，并发布 GitHub Release 资产。
+- 发布说明（Release Notes）：默认读取 `.github/release-notes/<tag>.md`（例如 `.github/release-notes/v1.0.0.md`）；若不存在则回退到 `CHANGELOG.md`。
 
 示例（发布 `v1.0.0`）：
 
