@@ -21,6 +21,7 @@
 - [Deploy：Kubernetes](./deploy/kubernetes.md)
 
 ### 3) 多语言 HTTP 接入示例（Go/Java/Python）
+- [Integration：HTTP API 入门使用文档](./integration/http-api-getting-started.md)
 - [Integration：Go 示例](./integration/client-go.md)
 - [Integration：Java 示例](./integration/client-java.md)
 - [Integration：Python 示例](./integration/client-python.md)
@@ -33,6 +34,9 @@
 
 ### 5) 常见疑惑（FAQ）
 - [FAQ：使用者疑惑导览](./faqs.md)
+
+### 6) 发布说明（Release Notes）
+- [v1.0.0 发布说明](./releases/v1.0.0.md)
 
 ## 版本与兼容性
 

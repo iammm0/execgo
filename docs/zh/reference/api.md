@@ -4,6 +4,7 @@
 
 ## 入口
 
+- 推荐先读：[`HTTP API 入门使用文档`](../integration/http-api-getting-started.md)
 - `POST /tasks`、`GET /tasks/{id}`、`GET /tasks`、`DELETE /tasks/{id}`、`GET /health`、`GET /metrics`
   - 详细总览：[`API 参考`](./API%20参考/API%20参考.md)
 

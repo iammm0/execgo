@@ -175,6 +175,7 @@ git push origin v1.0.0
 快速入口：
 
 - 中文总入口：[`docs/zh/README.md`](docs/zh/README.md)
+- 中文 HTTP API 入门：[`docs/zh/integration/http-api-getting-started.md`](docs/zh/integration/http-api-getting-started.md)
 - English total entry：[`docs/en/README.md`](docs/en/README.md)
 
 ---
