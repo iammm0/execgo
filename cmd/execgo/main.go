@@ -1,8 +1,4 @@
-// ExecGo — 极简 AI 执行引擎 / Minimal AI Execution Engine.
-//
-// 为 AI Agent 提供任务提交、DAG 调度、并发执行和可观测性的 HTTP 服务。
-// An HTTP service providing task submission, DAG scheduling, concurrent execution,
-// and observability for AI agents.
+// ExecGo distributed agent runtime entrypoint.
 package main
 
 import (
@@ -15,73 +11,103 @@ import (
 	"time"
 
 	"github.com/iammm0/execgo/pkg/config"
+	"github.com/iammm0/execgo/pkg/events"
+	eventspg "github.com/iammm0/execgo/pkg/events/postgres"
+	eventssqlite "github.com/iammm0/execgo/pkg/events/sqlite"
 	"github.com/iammm0/execgo/pkg/executor"
 	"github.com/iammm0/execgo/pkg/httpserver"
 	"github.com/iammm0/execgo/pkg/observability"
+	"github.com/iammm0/execgo/pkg/sandbox"
 	"github.com/iammm0/execgo/pkg/scheduler"
-	"github.com/iammm0/execgo/pkg/store/jsonfile"
+	"github.com/iammm0/execgo/pkg/store"
+	"github.com/iammm0/execgo/pkg/store/eventsourced"
+	"github.com/iammm0/execgo/pkg/taskqueue"
+	"github.com/iammm0/execgo/pkg/worker"
 )
 
-// main wires all runtime components together:
-// config -> logger/metrics -> state manager -> scheduler -> gRPC/HTTP servers.
-// main 负责串联所有运行时组件：
-// 配置 -> 日志/指标 -> 状态管理 -> 调度器 -> gRPC/HTTP 服务。
 func main() {
-	// Load configuration from flags and environment variables.
-	// 从命令行参数与环境变量加载配置。
 	cfg := config.Load(config.NewFlagEnvProvider())
-
-	// Initialize global logger for consistent structured logs.
-	// 初始化全局日志器，统一结构化日志输出。
 	logger := observability.NewLogger()
 	slog.SetDefault(logger)
 
 	logger.Info("ExecGo starting",
 		"addr", cfg.HTTPAddr,
 		"grpc_addr", cfg.GRPCAddr,
-		"data_dir", cfg.DataDir,
-		"max_concurrency", cfg.MaxConcurrency,
+		"event_store", cfg.EventStoreBackend,
+		"queue", cfg.QueueBackend,
+		"worker_id", cfg.WorkerID,
+		"worker_concurrency", cfg.WorkerConcurrency,
+		"sandbox", cfg.SandboxMode,
 	)
 
-	// Register all built-in executors before scheduler starts.
-	// 在调度器启动前注册所有内置执行器。
 	executor.RegisterBuiltins()
 	logger.Info("executors registered", "types", executor.RegisteredTypes())
-
-	// Metrics collector for runtime observability.
-	// 运行时可观测性指标采集器。
 	metrics := observability.NewMetrics()
+	rootCtx, rootCancel := context.WithCancel(context.Background())
+	defer rootCancel()
 
-	// Persistent state manager stores tasks/workflows on disk.
-	// 持久化状态管理器，负责将任务/工作流落盘。
-	sm, err := jsonfile.NewManager(cfg.DataDir, logger)
+	obsRuntime, err := observability.InitRuntime(rootCtx, observability.RuntimeConfig{
+		ServiceName: "execgo",
+	}, metrics, logger)
 	if err != nil {
-		logger.Error("failed to initialize state manager", "error", err)
+		logger.Error("failed to initialize observability runtime", "error", err)
+		os.Exit(1)
+	}
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := obsRuntime.Shutdown(shutdownCtx); err != nil {
+			logger.Warn("observability runtime shutdown failed", "error", err)
+		}
+	}()
+
+	eventStore, eventCloser, err := initEventStore(cfg, logger)
+	if err != nil {
+		logger.Error("failed to initialize event store", "error", err)
+		os.Exit(1)
+	}
+	if eventCloser != nil {
+		defer eventCloser()
+	}
+
+	stateManager, err := eventsourced.NewManager(eventStore, logger)
+	if err != nil {
+		logger.Error("failed to initialize event sourced state", "error", err)
 		os.Exit(1)
 	}
 
-	// Periodically flush in-memory state to storage.
-	// 周期性将内存状态持久化到存储。
-	persistStop := make(chan struct{})
-	sm.StartPeriodicPersist(30*time.Second, persistStop)
+	queue, err := initQueue(cfg, logger)
+	if err != nil {
+		logger.Error("failed to initialize queue", "error", err)
+		os.Exit(1)
+	}
 
-	// Start DAG scheduler with configured maximum concurrency.
-	// 按配置并发上限启动 DAG 调度器。
-	sched := scheduler.New(sm, metrics, logger, cfg.MaxConcurrency)
-	sched.Start(context.Background())
+	sched := scheduler.NewWithQueue(stateManager, metrics, logger, queue)
+	sched.Start(rootCtx)
 
-	// Start gRPC API for external control/automation.
-	// 启动 gRPC API，供外部控制与自动化调用。
-	stopGRPC, err := startGRPCServer(cfg.GRPCAddr, sm, sched, metrics, logger)
+	runner := initSandboxRunner(cfg)
+	w := worker.New(worker.Config{
+		ID:                cfg.WorkerID,
+		Concurrency:       cfg.WorkerConcurrency,
+		PollWait:          2 * time.Second,
+		LeaseDuration:     time.Duration(cfg.LeaseSeconds) * time.Second,
+		HeartbeatInterval: time.Duration(cfg.HeartbeatSeconds) * time.Second,
+		RetryBaseBackoff:  100 * time.Millisecond,
+		RetryMaxBackoff:   30 * time.Second,
+		Runner:            runner,
+	}, stateManager, sched, logger)
+	w.Start(rootCtx)
+
+	stopGRPC, err := startGRPCServer(cfg.GRPCAddr, stateManager, sched, metrics, logger)
 	if err != nil {
 		logger.Error("failed to start gRPC server", "error", err)
 		os.Exit(1)
 	}
 
-	// Build HTTP engine and expose REST endpoints.
-	// 构建 HTTP 引擎并暴露 REST 接口。
-	engine := httpserver.NewEngine(sm, sched, metrics, logger)
-
+	engine := httpserver.NewEngine(stateManager, sched, metrics, logger).
+		DisableTrace().
+		Use(obsRuntime.HTTPMiddleware()).
+		WithPrometheusHandler(obsRuntime.PrometheusHandler())
 	httpServer := &http.Server{
 		Addr:         cfg.HTTPAddr,
 		Handler:      engine.Handler(),
@@ -89,9 +115,6 @@ func main() {
 		WriteTimeout: 30 * time.Second,
 		IdleTimeout:  60 * time.Second,
 	}
-
-	// Run HTTP server in a separate goroutine.
-	// 在独立 goroutine 中运行 HTTP 服务。
 	go func() {
 		logger.Info("HTTP server listening", "addr", cfg.HTTPAddr)
 		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -100,42 +123,89 @@ func main() {
 		}
 	}()
 
-	// Wait for SIGINT/SIGTERM to trigger graceful shutdown.
-	// 等待 SIGINT/SIGTERM 信号，触发优雅停机流程。
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	sig := <-quit
 	logger.Info("shutdown signal received", "signal", sig)
 
-	// Bound total shutdown time to avoid hanging forever.
-	// 设置停机超时上限，避免无限阻塞。
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), time.Duration(cfg.ShutdownTimeout)*time.Second)
 	defer shutdownCancel()
 
-	// Stop HTTP first to reject new incoming requests.
-	// 先停止 HTTP 服务，拒绝新的外部请求进入。
 	logger.Info("stopping HTTP server...")
 	if err := httpServer.Shutdown(shutdownCtx); err != nil {
 		logger.Error("HTTP server shutdown error", "error", err)
 	}
 
-	// Stop gRPC server if enabled in current build.
-	// 若当前构建启用 gRPC，则同步停止 gRPC 服务。
 	if stopGRPC != nil {
 		logger.Info("stopping gRPC server...")
 		stopGRPC()
 	}
 
-	// Stop scheduler workers and in-flight scheduling loop.
-	// 停止调度器工作协程与调度循环。
+	logger.Info("stopping worker...")
+	w.Stop()
+
 	logger.Info("stopping scheduler...")
 	sched.Stop()
 
-	// Flush final state snapshot before process exits.
-	// 进程退出前做一次最终状态落盘。
-	logger.Info("persisting final state...")
-	close(persistStop)
-	time.Sleep(100 * time.Millisecond)
-
 	logger.Info("ExecGo stopped gracefully")
 }
+
+func initEventStore(cfg *config.Config, logger *slog.Logger) (events.EventStore, func(), error) {
+	switch cfg.EventStoreBackend {
+	case "sqlite":
+		st, err := eventssqlite.Open(cfg.EventStoreSQLitePath)
+		if err != nil {
+			return nil, nil, err
+		}
+		logger.Info("sqlite event store enabled", "path", cfg.EventStoreSQLitePath)
+		return st, func() { _ = st.Close() }, nil
+	case "postgres":
+		st, err := eventspg.Open(cfg.EventStorePostgresDSN)
+		if err != nil {
+			return nil, nil, err
+		}
+		logger.Info("postgres event store enabled")
+		return st, func() { _ = st.Close() }, nil
+	default:
+		logger.Info("memory event store enabled")
+		return events.NewMemoryStore(), nil, nil
+	}
+}
+
+func initQueue(cfg *config.Config, logger *slog.Logger) (taskqueue.Queue, error) {
+	switch cfg.QueueBackend {
+	case "redis":
+		q, err := taskqueue.NewRedisQueue(taskqueue.RedisConfig{
+			Addr:     cfg.RedisAddr,
+			Password: cfg.RedisPassword,
+			DB:       cfg.RedisDB,
+			Prefix:   cfg.RedisPrefix,
+			Group:    cfg.RedisGroup,
+		})
+		if err != nil {
+			return nil, err
+		}
+		logger.Info("redis queue enabled", "addr", cfg.RedisAddr, "prefix", cfg.RedisPrefix)
+		return q, nil
+	default:
+		logger.Info("memory queue enabled")
+		return taskqueue.NewMemoryQueue(), nil
+	}
+}
+
+func initSandboxRunner(cfg *config.Config) sandbox.Runner {
+	switch cfg.SandboxMode {
+	case "docker":
+		return sandbox.NewDockerRunner(sandbox.DockerConfig{
+			Image:     cfg.DockerImage,
+			CPUs:      cfg.DockerCPUs,
+			Memory:    cfg.DockerMemory,
+			PidsLimit: cfg.DockerPidsLimit,
+			NoNetwork: cfg.DockerNoNetwork,
+		})
+	default:
+		return sandbox.LocalRunner{}
+	}
+}
+
+var _ store.Store = (*eventsourced.Manager)(nil)

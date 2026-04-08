@@ -14,6 +14,16 @@ service ExecGo {
   rpc Metrics (MetricsRequest) returns (MetricsResponse);
 }
 
+service WorkerControl {
+  rpc RegisterWorker (RegisterWorkerRequest) returns (RegisterWorkerResponse);
+  rpc Heartbeat (HeartbeatRequest) returns (HeartbeatResponse);
+  rpc PollTask (PollTaskRequest) returns (PollTaskResponse);
+  rpc AckTask (AckTaskRequest) returns (AckTaskResponse);
+  rpc NackTask (NackTaskRequest) returns (NackTaskResponse);
+  rpc ReportProgress (ReportProgressRequest) returns (ReportProgressResponse);
+  rpc ReportAudit (ReportAuditRequest) returns (ReportAuditResponse);
+}
+
 message TaskGraph {
   repeated Task tasks = 1;
 }
@@ -32,6 +42,17 @@ message Task {
 
   int64 created_at_unix_ms = 10;
   int64 updated_at_unix_ms = 11;
+
+  string tool_name = 12;
+  string input_json = 13;
+  string execution_category = 14;
+  int32 priority = 15;
+  int64 scheduled_at_unix_ms = 16;
+  int64 version = 17;
+  string workflow_id = 18;
+  int32 attempt = 19;
+  string handle_id = 20;
+  string run_status = 21;
 }
 
 message SubmitTasksResponse {
@@ -79,3 +100,83 @@ message MetricsResponse {
   map<string, int64> by_type = 5;
 }
 
+message RegisterWorkerRequest {
+  string worker_id = 1;
+  map<string, string> capabilities = 2;
+}
+
+message RegisterWorkerResponse {
+  bool ok = 1;
+  int64 server_time_unix_ms = 2;
+}
+
+message HeartbeatRequest {
+  string worker_id = 1;
+}
+
+message HeartbeatResponse {
+  bool ok = 1;
+  int64 server_time_unix_ms = 2;
+}
+
+message PollTaskRequest {
+  string worker_id = 1;
+  int64 wait_ms = 2;
+}
+
+message PollTaskResponse {
+  bool found = 1;
+  string queue_message_id = 2;
+  Task task = 3;
+  int32 attempt = 4;
+  int64 lease_until_unix_ms = 5;
+}
+
+message AckTaskRequest {
+  string worker_id = 1;
+  string queue_message_id = 2;
+  string task_id = 3;
+  string status = 4; // success | failed | retry
+  string output_json = 5;
+  string error = 6;
+  int64 retry_delay_ms = 7;
+  string handle_id = 8;
+  int32 attempt = 9;
+}
+
+message AckTaskResponse {
+  bool ok = 1;
+}
+
+message NackTaskRequest {
+  string worker_id = 1;
+  string queue_message_id = 2;
+  int64 requeue_delay_ms = 3;
+  bool dead_letter = 4;
+}
+
+message NackTaskResponse {
+  bool ok = 1;
+}
+
+message ReportProgressRequest {
+  string worker_id = 1;
+  string task_id = 2;
+  string progress_json = 3;
+  int32 attempt = 4;
+}
+
+message ReportProgressResponse {
+  bool ok = 1;
+}
+
+message ReportAuditRequest {
+  string worker_id = 1;
+  string task_id = 2;
+  string audit_json = 3;
+  int32 attempt = 4;
+}
+
+message ReportAuditResponse {
+  bool ok = 1;
+}

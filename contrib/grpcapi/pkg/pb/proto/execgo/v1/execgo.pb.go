@@ -66,20 +66,30 @@ func (x *TaskGraph) GetTasks() []*Task {
 }
 
 type Task struct {
-	state           protoimpl.MessageState `protogen:"open.v1"`
-	Id              string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Type            string                 `protobuf:"bytes,2,opt,name=type,proto3" json:"type,omitempty"`
-	ParamsJson      string                 `protobuf:"bytes,3,opt,name=params_json,json=paramsJson,proto3" json:"params_json,omitempty"`
-	DependsOn       []string               `protobuf:"bytes,4,rep,name=depends_on,json=dependsOn,proto3" json:"depends_on,omitempty"`
-	Retry           int32                  `protobuf:"varint,5,opt,name=retry,proto3" json:"retry,omitempty"`
-	TimeoutMs       int64                  `protobuf:"varint,6,opt,name=timeout_ms,json=timeoutMs,proto3" json:"timeout_ms,omitempty"`
-	Status          string                 `protobuf:"bytes,7,opt,name=status,proto3" json:"status,omitempty"`
-	ResultJson      string                 `protobuf:"bytes,8,opt,name=result_json,json=resultJson,proto3" json:"result_json,omitempty"`
-	Error           string                 `protobuf:"bytes,9,opt,name=error,proto3" json:"error,omitempty"`
-	CreatedAtUnixMs int64                  `protobuf:"varint,10,opt,name=created_at_unix_ms,json=createdAtUnixMs,proto3" json:"created_at_unix_ms,omitempty"`
-	UpdatedAtUnixMs int64                  `protobuf:"varint,11,opt,name=updated_at_unix_ms,json=updatedAtUnixMs,proto3" json:"updated_at_unix_ms,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	Id                string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Type              string                 `protobuf:"bytes,2,opt,name=type,proto3" json:"type,omitempty"`
+	ParamsJson        string                 `protobuf:"bytes,3,opt,name=params_json,json=paramsJson,proto3" json:"params_json,omitempty"`
+	DependsOn         []string               `protobuf:"bytes,4,rep,name=depends_on,json=dependsOn,proto3" json:"depends_on,omitempty"`
+	Retry             int32                  `protobuf:"varint,5,opt,name=retry,proto3" json:"retry,omitempty"`
+	TimeoutMs         int64                  `protobuf:"varint,6,opt,name=timeout_ms,json=timeoutMs,proto3" json:"timeout_ms,omitempty"`
+	Status            string                 `protobuf:"bytes,7,opt,name=status,proto3" json:"status,omitempty"`
+	ResultJson        string                 `protobuf:"bytes,8,opt,name=result_json,json=resultJson,proto3" json:"result_json,omitempty"`
+	Error             string                 `protobuf:"bytes,9,opt,name=error,proto3" json:"error,omitempty"`
+	CreatedAtUnixMs   int64                  `protobuf:"varint,10,opt,name=created_at_unix_ms,json=createdAtUnixMs,proto3" json:"created_at_unix_ms,omitempty"`
+	UpdatedAtUnixMs   int64                  `protobuf:"varint,11,opt,name=updated_at_unix_ms,json=updatedAtUnixMs,proto3" json:"updated_at_unix_ms,omitempty"`
+	ToolName          string                 `protobuf:"bytes,12,opt,name=tool_name,json=toolName,proto3" json:"tool_name,omitempty"`
+	InputJson         string                 `protobuf:"bytes,13,opt,name=input_json,json=inputJson,proto3" json:"input_json,omitempty"`
+	ExecutionCategory string                 `protobuf:"bytes,14,opt,name=execution_category,json=executionCategory,proto3" json:"execution_category,omitempty"`
+	Priority          int32                  `protobuf:"varint,15,opt,name=priority,proto3" json:"priority,omitempty"`
+	ScheduledAtUnixMs int64                  `protobuf:"varint,16,opt,name=scheduled_at_unix_ms,json=scheduledAtUnixMs,proto3" json:"scheduled_at_unix_ms,omitempty"`
+	Version           int64                  `protobuf:"varint,17,opt,name=version,proto3" json:"version,omitempty"`
+	WorkflowId        string                 `protobuf:"bytes,18,opt,name=workflow_id,json=workflowId,proto3" json:"workflow_id,omitempty"`
+	Attempt           int32                  `protobuf:"varint,19,opt,name=attempt,proto3" json:"attempt,omitempty"`
+	HandleId          string                 `protobuf:"bytes,20,opt,name=handle_id,json=handleId,proto3" json:"handle_id,omitempty"`
+	RunStatus         string                 `protobuf:"bytes,21,opt,name=run_status,json=runStatus,proto3" json:"run_status,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *Task) Reset() {
@@ -187,6 +197,76 @@ func (x *Task) GetUpdatedAtUnixMs() int64 {
 		return x.UpdatedAtUnixMs
 	}
 	return 0
+}
+
+func (x *Task) GetToolName() string {
+	if x != nil {
+		return x.ToolName
+	}
+	return ""
+}
+
+func (x *Task) GetInputJson() string {
+	if x != nil {
+		return x.InputJson
+	}
+	return ""
+}
+
+func (x *Task) GetExecutionCategory() string {
+	if x != nil {
+		return x.ExecutionCategory
+	}
+	return ""
+}
+
+func (x *Task) GetPriority() int32 {
+	if x != nil {
+		return x.Priority
+	}
+	return 0
+}
+
+func (x *Task) GetScheduledAtUnixMs() int64 {
+	if x != nil {
+		return x.ScheduledAtUnixMs
+	}
+	return 0
+}
+
+func (x *Task) GetVersion() int64 {
+	if x != nil {
+		return x.Version
+	}
+	return 0
+}
+
+func (x *Task) GetWorkflowId() string {
+	if x != nil {
+		return x.WorkflowId
+	}
+	return ""
+}
+
+func (x *Task) GetAttempt() int32 {
+	if x != nil {
+		return x.Attempt
+	}
+	return 0
+}
+
+func (x *Task) GetHandleId() string {
+	if x != nil {
+		return x.HandleId
+	}
+	return ""
+}
+
+func (x *Task) GetRunStatus() string {
+	if x != nil {
+		return x.RunStatus
+	}
+	return ""
 }
 
 type SubmitTasksResponse struct {
@@ -705,13 +785,829 @@ func (x *MetricsResponse) GetByType() map[string]int64 {
 	return nil
 }
 
+type RegisterWorkerRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	WorkerId      string                 `protobuf:"bytes,1,opt,name=worker_id,json=workerId,proto3" json:"worker_id,omitempty"`
+	Capabilities  map[string]string      `protobuf:"bytes,2,rep,name=capabilities,proto3" json:"capabilities,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RegisterWorkerRequest) Reset() {
+	*x = RegisterWorkerRequest{}
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RegisterWorkerRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RegisterWorkerRequest) ProtoMessage() {}
+
+func (x *RegisterWorkerRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RegisterWorkerRequest.ProtoReflect.Descriptor instead.
+func (*RegisterWorkerRequest) Descriptor() ([]byte, []int) {
+	return file_proto_execgo_v1_execgo_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *RegisterWorkerRequest) GetWorkerId() string {
+	if x != nil {
+		return x.WorkerId
+	}
+	return ""
+}
+
+func (x *RegisterWorkerRequest) GetCapabilities() map[string]string {
+	if x != nil {
+		return x.Capabilities
+	}
+	return nil
+}
+
+type RegisterWorkerResponse struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	Ok               bool                   `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
+	ServerTimeUnixMs int64                  `protobuf:"varint,2,opt,name=server_time_unix_ms,json=serverTimeUnixMs,proto3" json:"server_time_unix_ms,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *RegisterWorkerResponse) Reset() {
+	*x = RegisterWorkerResponse{}
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RegisterWorkerResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RegisterWorkerResponse) ProtoMessage() {}
+
+func (x *RegisterWorkerResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RegisterWorkerResponse.ProtoReflect.Descriptor instead.
+func (*RegisterWorkerResponse) Descriptor() ([]byte, []int) {
+	return file_proto_execgo_v1_execgo_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *RegisterWorkerResponse) GetOk() bool {
+	if x != nil {
+		return x.Ok
+	}
+	return false
+}
+
+func (x *RegisterWorkerResponse) GetServerTimeUnixMs() int64 {
+	if x != nil {
+		return x.ServerTimeUnixMs
+	}
+	return 0
+}
+
+type HeartbeatRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	WorkerId      string                 `protobuf:"bytes,1,opt,name=worker_id,json=workerId,proto3" json:"worker_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *HeartbeatRequest) Reset() {
+	*x = HeartbeatRequest{}
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *HeartbeatRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*HeartbeatRequest) ProtoMessage() {}
+
+func (x *HeartbeatRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use HeartbeatRequest.ProtoReflect.Descriptor instead.
+func (*HeartbeatRequest) Descriptor() ([]byte, []int) {
+	return file_proto_execgo_v1_execgo_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *HeartbeatRequest) GetWorkerId() string {
+	if x != nil {
+		return x.WorkerId
+	}
+	return ""
+}
+
+type HeartbeatResponse struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	Ok               bool                   `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
+	ServerTimeUnixMs int64                  `protobuf:"varint,2,opt,name=server_time_unix_ms,json=serverTimeUnixMs,proto3" json:"server_time_unix_ms,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *HeartbeatResponse) Reset() {
+	*x = HeartbeatResponse{}
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *HeartbeatResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*HeartbeatResponse) ProtoMessage() {}
+
+func (x *HeartbeatResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use HeartbeatResponse.ProtoReflect.Descriptor instead.
+func (*HeartbeatResponse) Descriptor() ([]byte, []int) {
+	return file_proto_execgo_v1_execgo_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *HeartbeatResponse) GetOk() bool {
+	if x != nil {
+		return x.Ok
+	}
+	return false
+}
+
+func (x *HeartbeatResponse) GetServerTimeUnixMs() int64 {
+	if x != nil {
+		return x.ServerTimeUnixMs
+	}
+	return 0
+}
+
+type PollTaskRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	WorkerId      string                 `protobuf:"bytes,1,opt,name=worker_id,json=workerId,proto3" json:"worker_id,omitempty"`
+	WaitMs        int64                  `protobuf:"varint,2,opt,name=wait_ms,json=waitMs,proto3" json:"wait_ms,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PollTaskRequest) Reset() {
+	*x = PollTaskRequest{}
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PollTaskRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PollTaskRequest) ProtoMessage() {}
+
+func (x *PollTaskRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PollTaskRequest.ProtoReflect.Descriptor instead.
+func (*PollTaskRequest) Descriptor() ([]byte, []int) {
+	return file_proto_execgo_v1_execgo_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *PollTaskRequest) GetWorkerId() string {
+	if x != nil {
+		return x.WorkerId
+	}
+	return ""
+}
+
+func (x *PollTaskRequest) GetWaitMs() int64 {
+	if x != nil {
+		return x.WaitMs
+	}
+	return 0
+}
+
+type PollTaskResponse struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	Found            bool                   `protobuf:"varint,1,opt,name=found,proto3" json:"found,omitempty"`
+	QueueMessageId   string                 `protobuf:"bytes,2,opt,name=queue_message_id,json=queueMessageId,proto3" json:"queue_message_id,omitempty"`
+	Task             *Task                  `protobuf:"bytes,3,opt,name=task,proto3" json:"task,omitempty"`
+	Attempt          int32                  `protobuf:"varint,4,opt,name=attempt,proto3" json:"attempt,omitempty"`
+	LeaseUntilUnixMs int64                  `protobuf:"varint,5,opt,name=lease_until_unix_ms,json=leaseUntilUnixMs,proto3" json:"lease_until_unix_ms,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *PollTaskResponse) Reset() {
+	*x = PollTaskResponse{}
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PollTaskResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PollTaskResponse) ProtoMessage() {}
+
+func (x *PollTaskResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PollTaskResponse.ProtoReflect.Descriptor instead.
+func (*PollTaskResponse) Descriptor() ([]byte, []int) {
+	return file_proto_execgo_v1_execgo_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *PollTaskResponse) GetFound() bool {
+	if x != nil {
+		return x.Found
+	}
+	return false
+}
+
+func (x *PollTaskResponse) GetQueueMessageId() string {
+	if x != nil {
+		return x.QueueMessageId
+	}
+	return ""
+}
+
+func (x *PollTaskResponse) GetTask() *Task {
+	if x != nil {
+		return x.Task
+	}
+	return nil
+}
+
+func (x *PollTaskResponse) GetAttempt() int32 {
+	if x != nil {
+		return x.Attempt
+	}
+	return 0
+}
+
+func (x *PollTaskResponse) GetLeaseUntilUnixMs() int64 {
+	if x != nil {
+		return x.LeaseUntilUnixMs
+	}
+	return 0
+}
+
+type AckTaskRequest struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	WorkerId       string                 `protobuf:"bytes,1,opt,name=worker_id,json=workerId,proto3" json:"worker_id,omitempty"`
+	QueueMessageId string                 `protobuf:"bytes,2,opt,name=queue_message_id,json=queueMessageId,proto3" json:"queue_message_id,omitempty"`
+	TaskId         string                 `protobuf:"bytes,3,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
+	Status         string                 `protobuf:"bytes,4,opt,name=status,proto3" json:"status,omitempty"` // success | failed | retry
+	OutputJson     string                 `protobuf:"bytes,5,opt,name=output_json,json=outputJson,proto3" json:"output_json,omitempty"`
+	Error          string                 `protobuf:"bytes,6,opt,name=error,proto3" json:"error,omitempty"`
+	RetryDelayMs   int64                  `protobuf:"varint,7,opt,name=retry_delay_ms,json=retryDelayMs,proto3" json:"retry_delay_ms,omitempty"`
+	HandleId       string                 `protobuf:"bytes,8,opt,name=handle_id,json=handleId,proto3" json:"handle_id,omitempty"`
+	Attempt        int32                  `protobuf:"varint,9,opt,name=attempt,proto3" json:"attempt,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *AckTaskRequest) Reset() {
+	*x = AckTaskRequest{}
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AckTaskRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AckTaskRequest) ProtoMessage() {}
+
+func (x *AckTaskRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AckTaskRequest.ProtoReflect.Descriptor instead.
+func (*AckTaskRequest) Descriptor() ([]byte, []int) {
+	return file_proto_execgo_v1_execgo_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *AckTaskRequest) GetWorkerId() string {
+	if x != nil {
+		return x.WorkerId
+	}
+	return ""
+}
+
+func (x *AckTaskRequest) GetQueueMessageId() string {
+	if x != nil {
+		return x.QueueMessageId
+	}
+	return ""
+}
+
+func (x *AckTaskRequest) GetTaskId() string {
+	if x != nil {
+		return x.TaskId
+	}
+	return ""
+}
+
+func (x *AckTaskRequest) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *AckTaskRequest) GetOutputJson() string {
+	if x != nil {
+		return x.OutputJson
+	}
+	return ""
+}
+
+func (x *AckTaskRequest) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+func (x *AckTaskRequest) GetRetryDelayMs() int64 {
+	if x != nil {
+		return x.RetryDelayMs
+	}
+	return 0
+}
+
+func (x *AckTaskRequest) GetHandleId() string {
+	if x != nil {
+		return x.HandleId
+	}
+	return ""
+}
+
+func (x *AckTaskRequest) GetAttempt() int32 {
+	if x != nil {
+		return x.Attempt
+	}
+	return 0
+}
+
+type AckTaskResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Ok            bool                   `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AckTaskResponse) Reset() {
+	*x = AckTaskResponse{}
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AckTaskResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AckTaskResponse) ProtoMessage() {}
+
+func (x *AckTaskResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AckTaskResponse.ProtoReflect.Descriptor instead.
+func (*AckTaskResponse) Descriptor() ([]byte, []int) {
+	return file_proto_execgo_v1_execgo_proto_rawDescGZIP(), []int{20}
+}
+
+func (x *AckTaskResponse) GetOk() bool {
+	if x != nil {
+		return x.Ok
+	}
+	return false
+}
+
+type NackTaskRequest struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	WorkerId       string                 `protobuf:"bytes,1,opt,name=worker_id,json=workerId,proto3" json:"worker_id,omitempty"`
+	QueueMessageId string                 `protobuf:"bytes,2,opt,name=queue_message_id,json=queueMessageId,proto3" json:"queue_message_id,omitempty"`
+	RequeueDelayMs int64                  `protobuf:"varint,3,opt,name=requeue_delay_ms,json=requeueDelayMs,proto3" json:"requeue_delay_ms,omitempty"`
+	DeadLetter     bool                   `protobuf:"varint,4,opt,name=dead_letter,json=deadLetter,proto3" json:"dead_letter,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *NackTaskRequest) Reset() {
+	*x = NackTaskRequest{}
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *NackTaskRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NackTaskRequest) ProtoMessage() {}
+
+func (x *NackTaskRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NackTaskRequest.ProtoReflect.Descriptor instead.
+func (*NackTaskRequest) Descriptor() ([]byte, []int) {
+	return file_proto_execgo_v1_execgo_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *NackTaskRequest) GetWorkerId() string {
+	if x != nil {
+		return x.WorkerId
+	}
+	return ""
+}
+
+func (x *NackTaskRequest) GetQueueMessageId() string {
+	if x != nil {
+		return x.QueueMessageId
+	}
+	return ""
+}
+
+func (x *NackTaskRequest) GetRequeueDelayMs() int64 {
+	if x != nil {
+		return x.RequeueDelayMs
+	}
+	return 0
+}
+
+func (x *NackTaskRequest) GetDeadLetter() bool {
+	if x != nil {
+		return x.DeadLetter
+	}
+	return false
+}
+
+type NackTaskResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Ok            bool                   `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *NackTaskResponse) Reset() {
+	*x = NackTaskResponse{}
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *NackTaskResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NackTaskResponse) ProtoMessage() {}
+
+func (x *NackTaskResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NackTaskResponse.ProtoReflect.Descriptor instead.
+func (*NackTaskResponse) Descriptor() ([]byte, []int) {
+	return file_proto_execgo_v1_execgo_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *NackTaskResponse) GetOk() bool {
+	if x != nil {
+		return x.Ok
+	}
+	return false
+}
+
+type ReportProgressRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	WorkerId      string                 `protobuf:"bytes,1,opt,name=worker_id,json=workerId,proto3" json:"worker_id,omitempty"`
+	TaskId        string                 `protobuf:"bytes,2,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
+	ProgressJson  string                 `protobuf:"bytes,3,opt,name=progress_json,json=progressJson,proto3" json:"progress_json,omitempty"`
+	Attempt       int32                  `protobuf:"varint,4,opt,name=attempt,proto3" json:"attempt,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReportProgressRequest) Reset() {
+	*x = ReportProgressRequest{}
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReportProgressRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReportProgressRequest) ProtoMessage() {}
+
+func (x *ReportProgressRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReportProgressRequest.ProtoReflect.Descriptor instead.
+func (*ReportProgressRequest) Descriptor() ([]byte, []int) {
+	return file_proto_execgo_v1_execgo_proto_rawDescGZIP(), []int{23}
+}
+
+func (x *ReportProgressRequest) GetWorkerId() string {
+	if x != nil {
+		return x.WorkerId
+	}
+	return ""
+}
+
+func (x *ReportProgressRequest) GetTaskId() string {
+	if x != nil {
+		return x.TaskId
+	}
+	return ""
+}
+
+func (x *ReportProgressRequest) GetProgressJson() string {
+	if x != nil {
+		return x.ProgressJson
+	}
+	return ""
+}
+
+func (x *ReportProgressRequest) GetAttempt() int32 {
+	if x != nil {
+		return x.Attempt
+	}
+	return 0
+}
+
+type ReportProgressResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Ok            bool                   `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReportProgressResponse) Reset() {
+	*x = ReportProgressResponse{}
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReportProgressResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReportProgressResponse) ProtoMessage() {}
+
+func (x *ReportProgressResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReportProgressResponse.ProtoReflect.Descriptor instead.
+func (*ReportProgressResponse) Descriptor() ([]byte, []int) {
+	return file_proto_execgo_v1_execgo_proto_rawDescGZIP(), []int{24}
+}
+
+func (x *ReportProgressResponse) GetOk() bool {
+	if x != nil {
+		return x.Ok
+	}
+	return false
+}
+
+type ReportAuditRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	WorkerId      string                 `protobuf:"bytes,1,opt,name=worker_id,json=workerId,proto3" json:"worker_id,omitempty"`
+	TaskId        string                 `protobuf:"bytes,2,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
+	AuditJson     string                 `protobuf:"bytes,3,opt,name=audit_json,json=auditJson,proto3" json:"audit_json,omitempty"`
+	Attempt       int32                  `protobuf:"varint,4,opt,name=attempt,proto3" json:"attempt,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReportAuditRequest) Reset() {
+	*x = ReportAuditRequest{}
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReportAuditRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReportAuditRequest) ProtoMessage() {}
+
+func (x *ReportAuditRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReportAuditRequest.ProtoReflect.Descriptor instead.
+func (*ReportAuditRequest) Descriptor() ([]byte, []int) {
+	return file_proto_execgo_v1_execgo_proto_rawDescGZIP(), []int{25}
+}
+
+func (x *ReportAuditRequest) GetWorkerId() string {
+	if x != nil {
+		return x.WorkerId
+	}
+	return ""
+}
+
+func (x *ReportAuditRequest) GetTaskId() string {
+	if x != nil {
+		return x.TaskId
+	}
+	return ""
+}
+
+func (x *ReportAuditRequest) GetAuditJson() string {
+	if x != nil {
+		return x.AuditJson
+	}
+	return ""
+}
+
+func (x *ReportAuditRequest) GetAttempt() int32 {
+	if x != nil {
+		return x.Attempt
+	}
+	return 0
+}
+
+type ReportAuditResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Ok            bool                   `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReportAuditResponse) Reset() {
+	*x = ReportAuditResponse{}
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[26]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReportAuditResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReportAuditResponse) ProtoMessage() {}
+
+func (x *ReportAuditResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[26]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReportAuditResponse.ProtoReflect.Descriptor instead.
+func (*ReportAuditResponse) Descriptor() ([]byte, []int) {
+	return file_proto_execgo_v1_execgo_proto_rawDescGZIP(), []int{26}
+}
+
+func (x *ReportAuditResponse) GetOk() bool {
+	if x != nil {
+		return x.Ok
+	}
+	return false
+}
+
 var File_proto_execgo_v1_execgo_proto protoreflect.FileDescriptor
 
 const file_proto_execgo_v1_execgo_proto_rawDesc = "" +
 	"\n" +
 	"\x1cproto/execgo/v1/execgo.proto\x12\texecgo.v1\"2\n" +
 	"\tTaskGraph\x12%\n" +
-	"\x05tasks\x18\x01 \x03(\v2\x0f.execgo.v1.TaskR\x05tasks\"\xc8\x02\n" +
+	"\x05tasks\x18\x01 \x03(\v2\x0f.execgo.v1.TaskR\x05tasks\"\x91\x05\n" +
 	"\x04Task\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04type\x18\x02 \x01(\tR\x04type\x12\x1f\n" +
@@ -728,7 +1624,20 @@ const file_proto_execgo_v1_execgo_proto_rawDesc = "" +
 	"\x05error\x18\t \x01(\tR\x05error\x12+\n" +
 	"\x12created_at_unix_ms\x18\n" +
 	" \x01(\x03R\x0fcreatedAtUnixMs\x12+\n" +
-	"\x12updated_at_unix_ms\x18\v \x01(\x03R\x0fupdatedAtUnixMs\"L\n" +
+	"\x12updated_at_unix_ms\x18\v \x01(\x03R\x0fupdatedAtUnixMs\x12\x1b\n" +
+	"\ttool_name\x18\f \x01(\tR\btoolName\x12\x1d\n" +
+	"\n" +
+	"input_json\x18\r \x01(\tR\tinputJson\x12-\n" +
+	"\x12execution_category\x18\x0e \x01(\tR\x11executionCategory\x12\x1a\n" +
+	"\bpriority\x18\x0f \x01(\x05R\bpriority\x12/\n" +
+	"\x14scheduled_at_unix_ms\x18\x10 \x01(\x03R\x11scheduledAtUnixMs\x12\x18\n" +
+	"\aversion\x18\x11 \x01(\x03R\aversion\x12\x1f\n" +
+	"\vworkflow_id\x18\x12 \x01(\tR\n" +
+	"workflowId\x12\x18\n" +
+	"\aattempt\x18\x13 \x01(\x05R\aattempt\x12\x1b\n" +
+	"\thandle_id\x18\x14 \x01(\tR\bhandleId\x12\x1d\n" +
+	"\n" +
+	"run_status\x18\x15 \x01(\tR\trunStatus\"L\n" +
 	"\x13SubmitTasksResponse\x12\x1a\n" +
 	"\baccepted\x18\x01 \x01(\x05R\baccepted\x12\x19\n" +
 	"\btask_ids\x18\x02 \x03(\tR\ataskIds\" \n" +
@@ -758,7 +1667,66 @@ const file_proto_execgo_v1_execgo_proto_rawDesc = "" +
 	"\aby_type\x18\x05 \x03(\v2&.execgo.v1.MetricsResponse.ByTypeEntryR\x06byType\x1a9\n" +
 	"\vByTypeEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\x03R\x05value:\x028\x012\xa3\x03\n" +
+	"\x05value\x18\x02 \x01(\x03R\x05value:\x028\x01\"\xcd\x01\n" +
+	"\x15RegisterWorkerRequest\x12\x1b\n" +
+	"\tworker_id\x18\x01 \x01(\tR\bworkerId\x12V\n" +
+	"\fcapabilities\x18\x02 \x03(\v22.execgo.v1.RegisterWorkerRequest.CapabilitiesEntryR\fcapabilities\x1a?\n" +
+	"\x11CapabilitiesEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"W\n" +
+	"\x16RegisterWorkerResponse\x12\x0e\n" +
+	"\x02ok\x18\x01 \x01(\bR\x02ok\x12-\n" +
+	"\x13server_time_unix_ms\x18\x02 \x01(\x03R\x10serverTimeUnixMs\"/\n" +
+	"\x10HeartbeatRequest\x12\x1b\n" +
+	"\tworker_id\x18\x01 \x01(\tR\bworkerId\"R\n" +
+	"\x11HeartbeatResponse\x12\x0e\n" +
+	"\x02ok\x18\x01 \x01(\bR\x02ok\x12-\n" +
+	"\x13server_time_unix_ms\x18\x02 \x01(\x03R\x10serverTimeUnixMs\"G\n" +
+	"\x0fPollTaskRequest\x12\x1b\n" +
+	"\tworker_id\x18\x01 \x01(\tR\bworkerId\x12\x17\n" +
+	"\await_ms\x18\x02 \x01(\x03R\x06waitMs\"\xc0\x01\n" +
+	"\x10PollTaskResponse\x12\x14\n" +
+	"\x05found\x18\x01 \x01(\bR\x05found\x12(\n" +
+	"\x10queue_message_id\x18\x02 \x01(\tR\x0equeueMessageId\x12#\n" +
+	"\x04task\x18\x03 \x01(\v2\x0f.execgo.v1.TaskR\x04task\x12\x18\n" +
+	"\aattempt\x18\x04 \x01(\x05R\aattempt\x12-\n" +
+	"\x13lease_until_unix_ms\x18\x05 \x01(\x03R\x10leaseUntilUnixMs\"\x9c\x02\n" +
+	"\x0eAckTaskRequest\x12\x1b\n" +
+	"\tworker_id\x18\x01 \x01(\tR\bworkerId\x12(\n" +
+	"\x10queue_message_id\x18\x02 \x01(\tR\x0equeueMessageId\x12\x17\n" +
+	"\atask_id\x18\x03 \x01(\tR\x06taskId\x12\x16\n" +
+	"\x06status\x18\x04 \x01(\tR\x06status\x12\x1f\n" +
+	"\voutput_json\x18\x05 \x01(\tR\n" +
+	"outputJson\x12\x14\n" +
+	"\x05error\x18\x06 \x01(\tR\x05error\x12$\n" +
+	"\x0eretry_delay_ms\x18\a \x01(\x03R\fretryDelayMs\x12\x1b\n" +
+	"\thandle_id\x18\b \x01(\tR\bhandleId\x12\x18\n" +
+	"\aattempt\x18\t \x01(\x05R\aattempt\"!\n" +
+	"\x0fAckTaskResponse\x12\x0e\n" +
+	"\x02ok\x18\x01 \x01(\bR\x02ok\"\xa3\x01\n" +
+	"\x0fNackTaskRequest\x12\x1b\n" +
+	"\tworker_id\x18\x01 \x01(\tR\bworkerId\x12(\n" +
+	"\x10queue_message_id\x18\x02 \x01(\tR\x0equeueMessageId\x12(\n" +
+	"\x10requeue_delay_ms\x18\x03 \x01(\x03R\x0erequeueDelayMs\x12\x1f\n" +
+	"\vdead_letter\x18\x04 \x01(\bR\n" +
+	"deadLetter\"\"\n" +
+	"\x10NackTaskResponse\x12\x0e\n" +
+	"\x02ok\x18\x01 \x01(\bR\x02ok\"\x8c\x01\n" +
+	"\x15ReportProgressRequest\x12\x1b\n" +
+	"\tworker_id\x18\x01 \x01(\tR\bworkerId\x12\x17\n" +
+	"\atask_id\x18\x02 \x01(\tR\x06taskId\x12#\n" +
+	"\rprogress_json\x18\x03 \x01(\tR\fprogressJson\x12\x18\n" +
+	"\aattempt\x18\x04 \x01(\x05R\aattempt\"(\n" +
+	"\x16ReportProgressResponse\x12\x0e\n" +
+	"\x02ok\x18\x01 \x01(\bR\x02ok\"\x83\x01\n" +
+	"\x12ReportAuditRequest\x12\x1b\n" +
+	"\tworker_id\x18\x01 \x01(\tR\bworkerId\x12\x17\n" +
+	"\atask_id\x18\x02 \x01(\tR\x06taskId\x12\x1d\n" +
+	"\n" +
+	"audit_json\x18\x03 \x01(\tR\tauditJson\x12\x18\n" +
+	"\aattempt\x18\x04 \x01(\x05R\aattempt\"%\n" +
+	"\x13ReportAuditResponse\x12\x0e\n" +
+	"\x02ok\x18\x01 \x01(\bR\x02ok2\xa3\x03\n" +
 	"\x06ExecGo\x12C\n" +
 	"\vSubmitTasks\x12\x14.execgo.v1.TaskGraph\x1a\x1e.execgo.v1.SubmitTasksResponse\x12@\n" +
 	"\aGetTask\x12\x19.execgo.v1.GetTaskRequest\x1a\x1a.execgo.v1.GetTaskResponse\x12F\n" +
@@ -766,7 +1734,15 @@ const file_proto_execgo_v1_execgo_proto_rawDesc = "" +
 	"\n" +
 	"DeleteTask\x12\x1c.execgo.v1.DeleteTaskRequest\x1a\x1d.execgo.v1.DeleteTaskResponse\x12=\n" +
 	"\x06Health\x12\x18.execgo.v1.HealthRequest\x1a\x19.execgo.v1.HealthResponse\x12@\n" +
-	"\aMetrics\x12\x19.execgo.v1.MetricsRequest\x1a\x1a.execgo.v1.MetricsResponseBDZBgithub.com/iammm0/execgo/contrib/grpcapi/pkg/pb/execgo/v1;execgov1b\x06proto3"
+	"\aMetrics\x12\x19.execgo.v1.MetricsRequest\x1a\x1a.execgo.v1.MetricsResponse2\x9f\x04\n" +
+	"\rWorkerControl\x12U\n" +
+	"\x0eRegisterWorker\x12 .execgo.v1.RegisterWorkerRequest\x1a!.execgo.v1.RegisterWorkerResponse\x12F\n" +
+	"\tHeartbeat\x12\x1b.execgo.v1.HeartbeatRequest\x1a\x1c.execgo.v1.HeartbeatResponse\x12C\n" +
+	"\bPollTask\x12\x1a.execgo.v1.PollTaskRequest\x1a\x1b.execgo.v1.PollTaskResponse\x12@\n" +
+	"\aAckTask\x12\x19.execgo.v1.AckTaskRequest\x1a\x1a.execgo.v1.AckTaskResponse\x12C\n" +
+	"\bNackTask\x12\x1a.execgo.v1.NackTaskRequest\x1a\x1b.execgo.v1.NackTaskResponse\x12U\n" +
+	"\x0eReportProgress\x12 .execgo.v1.ReportProgressRequest\x1a!.execgo.v1.ReportProgressResponse\x12L\n" +
+	"\vReportAudit\x12\x1d.execgo.v1.ReportAuditRequest\x1a\x1e.execgo.v1.ReportAuditResponseBDZBgithub.com/iammm0/execgo/contrib/grpcapi/pkg/pb/execgo/v1;execgov1b\x06proto3"
 
 var (
 	file_proto_execgo_v1_execgo_proto_rawDescOnce sync.Once
@@ -780,45 +1756,76 @@ func file_proto_execgo_v1_execgo_proto_rawDescGZIP() []byte {
 	return file_proto_execgo_v1_execgo_proto_rawDescData
 }
 
-var file_proto_execgo_v1_execgo_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
+var file_proto_execgo_v1_execgo_proto_msgTypes = make([]protoimpl.MessageInfo, 29)
 var file_proto_execgo_v1_execgo_proto_goTypes = []any{
-	(*TaskGraph)(nil),           // 0: execgo.v1.TaskGraph
-	(*Task)(nil),                // 1: execgo.v1.Task
-	(*SubmitTasksResponse)(nil), // 2: execgo.v1.SubmitTasksResponse
-	(*GetTaskRequest)(nil),      // 3: execgo.v1.GetTaskRequest
-	(*GetTaskResponse)(nil),     // 4: execgo.v1.GetTaskResponse
-	(*ListTasksRequest)(nil),    // 5: execgo.v1.ListTasksRequest
-	(*ListTasksResponse)(nil),   // 6: execgo.v1.ListTasksResponse
-	(*DeleteTaskRequest)(nil),   // 7: execgo.v1.DeleteTaskRequest
-	(*DeleteTaskResponse)(nil),  // 8: execgo.v1.DeleteTaskResponse
-	(*HealthRequest)(nil),       // 9: execgo.v1.HealthRequest
-	(*HealthResponse)(nil),      // 10: execgo.v1.HealthResponse
-	(*MetricsRequest)(nil),      // 11: execgo.v1.MetricsRequest
-	(*MetricsResponse)(nil),     // 12: execgo.v1.MetricsResponse
-	nil,                         // 13: execgo.v1.MetricsResponse.ByTypeEntry
+	(*TaskGraph)(nil),              // 0: execgo.v1.TaskGraph
+	(*Task)(nil),                   // 1: execgo.v1.Task
+	(*SubmitTasksResponse)(nil),    // 2: execgo.v1.SubmitTasksResponse
+	(*GetTaskRequest)(nil),         // 3: execgo.v1.GetTaskRequest
+	(*GetTaskResponse)(nil),        // 4: execgo.v1.GetTaskResponse
+	(*ListTasksRequest)(nil),       // 5: execgo.v1.ListTasksRequest
+	(*ListTasksResponse)(nil),      // 6: execgo.v1.ListTasksResponse
+	(*DeleteTaskRequest)(nil),      // 7: execgo.v1.DeleteTaskRequest
+	(*DeleteTaskResponse)(nil),     // 8: execgo.v1.DeleteTaskResponse
+	(*HealthRequest)(nil),          // 9: execgo.v1.HealthRequest
+	(*HealthResponse)(nil),         // 10: execgo.v1.HealthResponse
+	(*MetricsRequest)(nil),         // 11: execgo.v1.MetricsRequest
+	(*MetricsResponse)(nil),        // 12: execgo.v1.MetricsResponse
+	(*RegisterWorkerRequest)(nil),  // 13: execgo.v1.RegisterWorkerRequest
+	(*RegisterWorkerResponse)(nil), // 14: execgo.v1.RegisterWorkerResponse
+	(*HeartbeatRequest)(nil),       // 15: execgo.v1.HeartbeatRequest
+	(*HeartbeatResponse)(nil),      // 16: execgo.v1.HeartbeatResponse
+	(*PollTaskRequest)(nil),        // 17: execgo.v1.PollTaskRequest
+	(*PollTaskResponse)(nil),       // 18: execgo.v1.PollTaskResponse
+	(*AckTaskRequest)(nil),         // 19: execgo.v1.AckTaskRequest
+	(*AckTaskResponse)(nil),        // 20: execgo.v1.AckTaskResponse
+	(*NackTaskRequest)(nil),        // 21: execgo.v1.NackTaskRequest
+	(*NackTaskResponse)(nil),       // 22: execgo.v1.NackTaskResponse
+	(*ReportProgressRequest)(nil),  // 23: execgo.v1.ReportProgressRequest
+	(*ReportProgressResponse)(nil), // 24: execgo.v1.ReportProgressResponse
+	(*ReportAuditRequest)(nil),     // 25: execgo.v1.ReportAuditRequest
+	(*ReportAuditResponse)(nil),    // 26: execgo.v1.ReportAuditResponse
+	nil,                            // 27: execgo.v1.MetricsResponse.ByTypeEntry
+	nil,                            // 28: execgo.v1.RegisterWorkerRequest.CapabilitiesEntry
 }
 var file_proto_execgo_v1_execgo_proto_depIdxs = []int32{
 	1,  // 0: execgo.v1.TaskGraph.tasks:type_name -> execgo.v1.Task
 	1,  // 1: execgo.v1.GetTaskResponse.task:type_name -> execgo.v1.Task
 	1,  // 2: execgo.v1.ListTasksResponse.tasks:type_name -> execgo.v1.Task
-	13, // 3: execgo.v1.MetricsResponse.by_type:type_name -> execgo.v1.MetricsResponse.ByTypeEntry
-	0,  // 4: execgo.v1.ExecGo.SubmitTasks:input_type -> execgo.v1.TaskGraph
-	3,  // 5: execgo.v1.ExecGo.GetTask:input_type -> execgo.v1.GetTaskRequest
-	5,  // 6: execgo.v1.ExecGo.ListTasks:input_type -> execgo.v1.ListTasksRequest
-	7,  // 7: execgo.v1.ExecGo.DeleteTask:input_type -> execgo.v1.DeleteTaskRequest
-	9,  // 8: execgo.v1.ExecGo.Health:input_type -> execgo.v1.HealthRequest
-	11, // 9: execgo.v1.ExecGo.Metrics:input_type -> execgo.v1.MetricsRequest
-	2,  // 10: execgo.v1.ExecGo.SubmitTasks:output_type -> execgo.v1.SubmitTasksResponse
-	4,  // 11: execgo.v1.ExecGo.GetTask:output_type -> execgo.v1.GetTaskResponse
-	6,  // 12: execgo.v1.ExecGo.ListTasks:output_type -> execgo.v1.ListTasksResponse
-	8,  // 13: execgo.v1.ExecGo.DeleteTask:output_type -> execgo.v1.DeleteTaskResponse
-	10, // 14: execgo.v1.ExecGo.Health:output_type -> execgo.v1.HealthResponse
-	12, // 15: execgo.v1.ExecGo.Metrics:output_type -> execgo.v1.MetricsResponse
-	10, // [10:16] is the sub-list for method output_type
-	4,  // [4:10] is the sub-list for method input_type
-	4,  // [4:4] is the sub-list for extension type_name
-	4,  // [4:4] is the sub-list for extension extendee
-	0,  // [0:4] is the sub-list for field type_name
+	27, // 3: execgo.v1.MetricsResponse.by_type:type_name -> execgo.v1.MetricsResponse.ByTypeEntry
+	28, // 4: execgo.v1.RegisterWorkerRequest.capabilities:type_name -> execgo.v1.RegisterWorkerRequest.CapabilitiesEntry
+	1,  // 5: execgo.v1.PollTaskResponse.task:type_name -> execgo.v1.Task
+	0,  // 6: execgo.v1.ExecGo.SubmitTasks:input_type -> execgo.v1.TaskGraph
+	3,  // 7: execgo.v1.ExecGo.GetTask:input_type -> execgo.v1.GetTaskRequest
+	5,  // 8: execgo.v1.ExecGo.ListTasks:input_type -> execgo.v1.ListTasksRequest
+	7,  // 9: execgo.v1.ExecGo.DeleteTask:input_type -> execgo.v1.DeleteTaskRequest
+	9,  // 10: execgo.v1.ExecGo.Health:input_type -> execgo.v1.HealthRequest
+	11, // 11: execgo.v1.ExecGo.Metrics:input_type -> execgo.v1.MetricsRequest
+	13, // 12: execgo.v1.WorkerControl.RegisterWorker:input_type -> execgo.v1.RegisterWorkerRequest
+	15, // 13: execgo.v1.WorkerControl.Heartbeat:input_type -> execgo.v1.HeartbeatRequest
+	17, // 14: execgo.v1.WorkerControl.PollTask:input_type -> execgo.v1.PollTaskRequest
+	19, // 15: execgo.v1.WorkerControl.AckTask:input_type -> execgo.v1.AckTaskRequest
+	21, // 16: execgo.v1.WorkerControl.NackTask:input_type -> execgo.v1.NackTaskRequest
+	23, // 17: execgo.v1.WorkerControl.ReportProgress:input_type -> execgo.v1.ReportProgressRequest
+	25, // 18: execgo.v1.WorkerControl.ReportAudit:input_type -> execgo.v1.ReportAuditRequest
+	2,  // 19: execgo.v1.ExecGo.SubmitTasks:output_type -> execgo.v1.SubmitTasksResponse
+	4,  // 20: execgo.v1.ExecGo.GetTask:output_type -> execgo.v1.GetTaskResponse
+	6,  // 21: execgo.v1.ExecGo.ListTasks:output_type -> execgo.v1.ListTasksResponse
+	8,  // 22: execgo.v1.ExecGo.DeleteTask:output_type -> execgo.v1.DeleteTaskResponse
+	10, // 23: execgo.v1.ExecGo.Health:output_type -> execgo.v1.HealthResponse
+	12, // 24: execgo.v1.ExecGo.Metrics:output_type -> execgo.v1.MetricsResponse
+	14, // 25: execgo.v1.WorkerControl.RegisterWorker:output_type -> execgo.v1.RegisterWorkerResponse
+	16, // 26: execgo.v1.WorkerControl.Heartbeat:output_type -> execgo.v1.HeartbeatResponse
+	18, // 27: execgo.v1.WorkerControl.PollTask:output_type -> execgo.v1.PollTaskResponse
+	20, // 28: execgo.v1.WorkerControl.AckTask:output_type -> execgo.v1.AckTaskResponse
+	22, // 29: execgo.v1.WorkerControl.NackTask:output_type -> execgo.v1.NackTaskResponse
+	24, // 30: execgo.v1.WorkerControl.ReportProgress:output_type -> execgo.v1.ReportProgressResponse
+	26, // 31: execgo.v1.WorkerControl.ReportAudit:output_type -> execgo.v1.ReportAuditResponse
+	19, // [19:32] is the sub-list for method output_type
+	6,  // [6:19] is the sub-list for method input_type
+	6,  // [6:6] is the sub-list for extension type_name
+	6,  // [6:6] is the sub-list for extension extendee
+	0,  // [0:6] is the sub-list for field type_name
 }
 
 func init() { file_proto_execgo_v1_execgo_proto_init() }
@@ -832,9 +1839,9 @@ func file_proto_execgo_v1_execgo_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_execgo_v1_execgo_proto_rawDesc), len(file_proto_execgo_v1_execgo_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   14,
+			NumMessages:   29,
 			NumExtensions: 0,
-			NumServices:   1,
+			NumServices:   2,
 		},
 		GoTypes:           file_proto_execgo_v1_execgo_proto_goTypes,
 		DependencyIndexes: file_proto_execgo_v1_execgo_proto_depIdxs,

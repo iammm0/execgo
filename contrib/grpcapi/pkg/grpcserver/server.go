@@ -12,6 +12,7 @@ import (
 	"github.com/iammm0/execgo/pkg/observability"
 	"github.com/iammm0/execgo/pkg/scheduler"
 	"github.com/iammm0/execgo/pkg/store"
+	execgoversion "github.com/iammm0/execgo/pkg/version"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -45,22 +46,40 @@ func taskToProto(t *models.Task) *execgov1.Task {
 	if len(t.Params) > 0 {
 		paramsJSON = string(t.Params)
 	}
+	var inputJSON string
+	if len(t.Input) > 0 {
+		inputJSON = string(t.Input)
+	}
 	var resultJSON string
 	if len(t.Result) > 0 {
 		resultJSON = string(t.Result)
 	}
+	var scheduledAtUnixMS int64
+	if t.ScheduledAt != nil {
+		scheduledAtUnixMS = t.ScheduledAt.UnixMilli()
+	}
 	return &execgov1.Task{
-		Id:                 t.ID,
-		Type:               t.Type,
+		Id:                t.ID,
+		Type:              t.Type,
 		ParamsJson:        paramsJSON,
 		DependsOn:         t.DependsOn,
-		Retry:              int32(t.Retry),
+		Retry:             int32(t.Retry),
 		TimeoutMs:         t.Timeout,
-		Status:             string(t.Status),
+		Status:            string(t.Status),
 		ResultJson:        resultJSON,
-		Error:              t.Error,
+		Error:             t.Error,
 		CreatedAtUnixMs:   t.CreatedAt.UnixMilli(),
 		UpdatedAtUnixMs:   t.UpdatedAt.UnixMilli(),
+		ToolName:          t.ToolName,
+		InputJson:         inputJSON,
+		ExecutionCategory: t.Category,
+		Priority:          int32(t.Priority),
+		ScheduledAtUnixMs: scheduledAtUnixMS,
+		Version:           t.Version,
+		WorkflowId:        t.WorkflowID,
+		Attempt:           int32(t.Attempt),
+		HandleId:          t.HandleID,
+		RunStatus:         t.RunStatus,
 	}
 }
 
@@ -69,14 +88,33 @@ func taskFromProto(t *execgov1.Task) *models.Task {
 	if t.GetParamsJson() != "" {
 		params = json.RawMessage(t.ParamsJson)
 	}
+	var input json.RawMessage
+	if t.GetInputJson() != "" {
+		input = json.RawMessage(t.InputJson)
+	}
+	var scheduledAt *time.Time
+	if t.GetScheduledAtUnixMs() > 0 {
+		ts := time.UnixMilli(t.GetScheduledAtUnixMs()).UTC()
+		scheduledAt = &ts
+	}
 
 	return &models.Task{
-		ID:        t.GetId(),
-		Type:      t.GetType(),
-		Params:    params,
-		DependsOn: t.GetDependsOn(),
-		Retry:     int(t.GetRetry()),
-		Timeout:   t.GetTimeoutMs(),
+		ID:          t.GetId(),
+		WorkflowID:  t.GetWorkflowId(),
+		Type:        t.GetType(),
+		Params:      params,
+		ToolName:    t.GetToolName(),
+		Input:       input,
+		Category:    t.GetExecutionCategory(),
+		DependsOn:   t.GetDependsOn(),
+		Retry:       int(t.GetRetry()),
+		Priority:    int(t.GetPriority()),
+		ScheduledAt: scheduledAt,
+		Timeout:     t.GetTimeoutMs(),
+		Version:     t.GetVersion(),
+		Attempt:     int(t.GetAttempt()),
+		HandleID:    t.GetHandleId(),
+		RunStatus:   t.GetRunStatus(),
 		// Status/CreatedAt/UpdatedAt are assigned by scheduler.Submit and persistence layer.
 		Status: models.StatusPending,
 	}
@@ -105,7 +143,7 @@ func (s *Server) SubmitTasks(ctx context.Context, req *execgov1.TaskGraph) (*exe
 		}
 	}
 
-	s.sched.Submit(graph)
+	s.sched.SubmitWithContext(ctx, graph)
 
 	ids := make([]string, 0, len(graph.Tasks))
 	for _, t := range graph.Tasks {
@@ -157,7 +195,7 @@ func (s *Server) Health(ctx context.Context, req *execgov1.HealthRequest) (*exec
 	_ = req
 	return &execgov1.HealthResponse{
 		Status:  "ok",
-		Version: "v0.1.0",
+		Version: execgoversion.Current,
 		Uptime:  time.Since(s.startTime).Round(time.Second).String(),
 	}, nil
 }
@@ -172,4 +210,3 @@ func (s *Server) Metrics(ctx context.Context, req *execgov1.MetricsRequest) (*ex
 		ByType:         s.metrics.Snapshot(),
 	}, nil
 }
-

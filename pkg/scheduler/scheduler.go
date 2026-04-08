@@ -1,496 +1,413 @@
-// Package scheduler 实现基于 DAG 的任务调度器
-// implements a DAG-based task scheduler.
+// Package scheduler provides DAG orchestration and queue scheduling.
 package scheduler
 
 import (
 	"context"
 	"encoding/json"
-	"errors"
-	"fmt"
 	"log/slog"
+	"sort"
 	"sync"
 	"time"
 
-	"github.com/iammm0/execgo/pkg/executor"
 	"github.com/iammm0/execgo/pkg/models"
 	"github.com/iammm0/execgo/pkg/observability"
 	"github.com/iammm0/execgo/pkg/store"
+	"github.com/iammm0/execgo/pkg/taskqueue"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
-// Scheduler DAG 任务调度器 / DAG task scheduler.
+// Scheduler orchestrates DAG dependency resolution and queueing.
 type Scheduler struct {
 	state   store.Store
+	evented store.EventBackedStore
 	metrics *observability.Metrics
 	logger  *slog.Logger
+	queue   taskqueue.Queue
 
-	readyQueue chan *models.Task   // 就绪队列 / ready queue
-	semaphore  chan struct{}       // 并发信号量 / concurrency semaphore
-	depCount   map[string]int      // 剩余依赖计数 / remaining dependency count
-	dependents map[string][]string // 反向依赖图 / reverse dependency graph
-	mu         sync.Mutex          // 保护 depCount 和 dependents / protects depCount & dependents
-
-	wg     sync.WaitGroup
-	cancel context.CancelFunc
+	mu         sync.Mutex
+	depCount   map[string]int
+	dependents map[string][]string
+	started    bool
+	ctx        context.Context
+	cancel     context.CancelFunc
 }
 
-const asyncHandlePollInterval = 100 * time.Millisecond
-
-// New 创建调度器 / creates a new scheduler.
+// New creates scheduler with memory queue by default.
 func New(st store.Store, metrics *observability.Metrics, logger *slog.Logger, maxConcurrency int) *Scheduler {
-	return &Scheduler{
+	_ = maxConcurrency // concurrency is handled by workers in v2.
+	return NewWithQueue(st, metrics, logger, taskqueue.NewMemoryQueue())
+}
+
+// NewWithQueue creates scheduler with provided queue backend.
+func NewWithQueue(st store.Store, metrics *observability.Metrics, logger *slog.Logger, queue taskqueue.Queue) *Scheduler {
+	if logger == nil {
+		logger = slog.Default()
+	}
+	s := &Scheduler{
 		state:      st,
 		metrics:    metrics,
 		logger:     logger,
-		readyQueue: make(chan *models.Task, 1024),
-		semaphore:  make(chan struct{}, maxConcurrency),
+		queue:      queue,
 		depCount:   make(map[string]int),
 		dependents: make(map[string][]string),
 	}
+	if es, ok := st.(store.EventBackedStore); ok {
+		s.evented = es
+	}
+	return s
 }
 
-// Start 启动调度器工作循环 / starts the scheduler work loop.
+// Start starts scheduler background services.
 func (s *Scheduler) Start(ctx context.Context) {
-	ctx, s.cancel = context.WithCancel(ctx)
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	s.mu.Lock()
+	if s.started {
+		s.mu.Unlock()
+		return
+	}
+	s.ctx, s.cancel = context.WithCancel(ctx)
+	s.started = true
+	s.mu.Unlock()
 
-	s.wg.Add(1)
-	go func() {
-		defer s.wg.Done()
-		s.loop(ctx)
-	}()
-
+	if s.queue != nil {
+		if err := s.queue.Start(s.ctx); err != nil {
+			s.logger.Error("queue start failed", "error", err)
+		}
+	}
+	s.restoreGraphState()
 	s.logger.Info("scheduler started")
 }
 
-// Stop 优雅关闭调度器 / gracefully stops the scheduler.
+// Stop stops scheduler background services.
 func (s *Scheduler) Stop() {
+	s.mu.Lock()
 	if s.cancel != nil {
 		s.cancel()
 	}
-	s.wg.Wait()
+	s.started = false
+	s.mu.Unlock()
 	s.logger.Info("scheduler stopped")
 }
 
-// Submit 提交任务图到调度器 / submits a task graph to the scheduler.
+// Queue returns the queue backend used by scheduler.
+func (s *Scheduler) Queue() taskqueue.Queue {
+	return s.queue
+}
+
+// Submit validates and submits DAG tasks to scheduler.
 func (s *Scheduler) Submit(graph *models.TaskGraph) {
-	now := time.Now()
+	s.SubmitWithContext(context.Background(), graph)
+}
+
+// SubmitWithContext validates and submits DAG tasks using caller context.
+func (s *Scheduler) SubmitWithContext(ctx context.Context, graph *models.TaskGraph) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if graph == nil || len(graph.Tasks) == 0 {
+		return
+	}
+	ctx, span := observability.StartSpan(ctx, "scheduler.submit",
+		trace.WithAttributes(
+			attribute.Int("execgo.task_count", len(graph.Tasks)),
+		),
+	)
+	defer span.End()
+
+	now := time.Now().UTC()
+
+	if s.evented != nil {
+		res, err := s.evented.SubmitGraph(ctx, graph, store.SubmitOptions{})
+		if err != nil {
+			s.logger.Error("submit graph failed", "error", err)
+			return
+		}
+		s.logger.Info("task graph submitted", "workflow_id", res.WorkflowID, "tasks", len(res.TaskIDs), "idempotent_hit", res.IdempotentHit)
+		if res.IdempotentHit {
+			return
+		}
+	}
 
 	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	for _, task := range graph.Tasks {
-		task.Status = models.StatusPending
-		task.CreatedAt = now
-		task.UpdatedAt = now
-		s.state.Put(task)
-		s.metrics.TasksTotal.Add(1)
-		s.metrics.IncType(task.Type)
-
-		// 构建依赖计数与反向依赖图 / build dependency count and reverse graph
 		s.depCount[task.ID] = len(task.DependsOn)
 		for _, dep := range task.DependsOn {
-			s.dependents[dep] = append(s.dependents[dep], task.ID)
+			s.dependents[dep] = appendUnique(s.dependents[dep], task.ID)
 		}
 	}
+	s.mu.Unlock()
 
-	// 将无依赖的任务加入就绪队列 / enqueue tasks with no dependencies
 	for _, task := range graph.Tasks {
-		if s.depCount[task.ID] == 0 {
-			s.enqueue(task)
+		if task.Priority < 0 || task.Priority > 9 {
+			task.Priority = 5
 		}
-	}
-}
-
-// enqueue 将任务放入就绪队列 / puts a task into the ready queue.
-func (s *Scheduler) enqueue(task *models.Task) {
-	select {
-	case s.readyQueue <- task:
-	default:
-		s.logger.Warn("ready queue full, task will wait", "task_id", task.ID)
-		go func() { s.readyQueue <- task }()
-	}
-}
-
-// loop 调度主循环 / main scheduling loop.
-func (s *Scheduler) loop(ctx context.Context) {
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case task := <-s.readyQueue:
-			s.semaphore <- struct{}{} // 获取并发槽 / acquire concurrency slot
-			s.wg.Add(1)
-			go func(t *models.Task) {
-				defer s.wg.Done()
-				defer func() { <-s.semaphore }() // 释放并发槽 / release concurrency slot
-				s.executeTask(ctx, t)
-			}(task)
+		if task.ScheduledAt != nil && task.ScheduledAt.After(now) {
+			_ = s.queue.EnqueueDelayed(ctx, task.ID, task.Priority, task.Attempt, *task.ScheduledAt)
+			continue
 		}
+		if len(task.DependsOn) == 0 {
+			_ = s.queue.Enqueue(ctx, task.ID, task.Priority, task.Attempt)
+		}
+		s.metrics.TasksTotal.Add(1)
+		s.metrics.IncType(task.Type)
 	}
 }
 
-// executeTask 执行单个任务，含超时和重试 / executes a single task with timeout and retry.
-func (s *Scheduler) executeTask(ctx context.Context, task *models.Task) {
-	logger := s.logger.With("task_id", task.ID, "task_type", task.Type)
-	executor.NormalizeTask(task)
-
-	// 获取执行器 / get executor
-	exec, err := executor.Get(task.Type)
-	if err != nil {
-		logger.Error("executor not found", "error", err)
-		s.completeTask(task, models.StatusFailed, nil, err, nil, time.Time{}, time.Now(), 0)
+// OnTaskLeased records lease state.
+func (s *Scheduler) OnTaskLeased(taskID, workerID string, until time.Time, attempt int) {
+	if s.evented == nil {
 		return
 	}
-
-	// 更新状态为 running / mark as running
-	runStartedAt := time.Now()
-	task.RunStatus = string(models.RuntimeRunning)
-	task.Runtime = &models.RuntimeResult{
-		Status:    models.RuntimeRunning,
-		StartedAt: timePtr(runStartedAt),
-	}
-	s.state.UpdateStatus(task.ID, models.StatusRunning, nil, "")
-	s.metrics.TasksRunning.Add(1)
-	logger.Info("task started")
-
-	maxAttempts := task.Retry + 1
-	if maxAttempts < 1 {
-		maxAttempts = 1
-	}
-
-	var lastErr error
-	var execResult *executor.Result
-	attemptsUsed := 0
-
-	for attempt := 1; attempt <= maxAttempts; attempt++ {
-		attemptsUsed = attempt
-		if attempt > 1 {
-			// 指数退避: 100ms * 2^(attempt-2) / exponential backoff
-			backoff := time.Duration(100*(1<<(attempt-2))) * time.Millisecond
-			if backoff > 10*time.Second {
-				backoff = 10 * time.Second
-			}
-			logger.Info("retrying task", "attempt", attempt, "backoff", backoff)
-			time.Sleep(backoff)
-		}
-
-		// 构建带超时的 context / build context with timeout
-		execCtx := ctx
-		var cancelFn context.CancelFunc
-		if task.Timeout > 0 {
-			execCtx, cancelFn = context.WithTimeout(ctx, time.Duration(task.Timeout)*time.Millisecond)
-		} else {
-			execCtx, cancelFn = context.WithCancel(ctx)
-		}
-
-		execResult, lastErr = exec.Execute(execCtx, task)
-		if execResult != nil && execResult.Attempt == 0 {
-			execResult.Attempt = attempt
-		}
-		if execResult != nil {
-			s.applyInFlightRuntime(task, execResult, runStartedAt, attempt)
-		}
-		if lastErr == nil && execResult != nil && !execResult.Status.IsTerminal() {
-			execResult, lastErr = s.awaitRuntimeResult(execCtx, exec, execResult, logger, runStartedAt, attempt, task)
-		}
-		cancelFn()
-
-		if lastErr == nil {
-			break
-		}
-		logger.Warn("task attempt failed", "attempt", attempt, "error", lastErr)
-	}
-
-	s.metrics.TasksRunning.Add(-1)
-	finishedAt := time.Now()
-
-	if lastErr != nil {
-		logger.Error("task failed after all retries", "error", lastErr)
-		s.completeTask(task, models.StatusFailed, resultOutput(execResult), lastErr, execResult, runStartedAt, finishedAt, attemptsUsed)
-	} else {
-		logger.Info("task completed successfully")
-		s.completeTask(task, models.StatusSuccess, resultOutput(execResult), nil, execResult, runStartedAt, finishedAt, attemptsUsed)
+	_, err := s.evented.TransitionTask(context.Background(), taskID, models.StatusLeased, store.TransitionOptions{
+		LeaseOwner: workerID,
+		LeaseUntil: until,
+		Attempt:    attempt,
+		Metadata:   models.RuntimeEventMetadata{WorkerID: workerID, Attempt: attempt, TaskID: taskID},
+	})
+	if err != nil {
+		s.logger.Warn("mark task leased failed", "task_id", taskID, "error", err)
 	}
 }
 
-// completeTask 完成任务并级联触发下游依赖 / completes a task and cascades to downstream dependents.
-func (s *Scheduler) completeTask(task *models.Task, status models.TaskStatus, result json.RawMessage, runErr error, execResult *executor.Result, startedAt, finishedAt time.Time, attempt int) {
-	runtime := buildRuntimeResult(status, execResult, runErr, startedAt, finishedAt, attempt)
-	errMsg := ""
-	if runtime != nil {
-		task.Runtime = runtime
-		task.RunStatus = string(runtime.Status)
-		task.HandleID = runtime.HandleID
-		if runtime.Error != nil {
-			errMsg = runtime.Error.Message
-		}
+// OnTaskStarted records running state.
+func (s *Scheduler) OnTaskStarted(taskID, workerID string, attempt int) {
+	task, ok := s.state.Get(taskID)
+	if ok && task.Status == models.StatusRunning {
+		return
 	}
-	if execResult != nil {
-		if len(execResult.Progress) > 0 {
-			progress, _ := json.Marshal(execResult.Progress)
-			task.Progress = progress
-		}
+	if s.evented == nil {
+		s.state.UpdateStatus(taskID, models.StatusRunning, nil, "")
+		s.metrics.TasksRunning.Add(1)
+		return
 	}
-	s.state.UpdateStatus(task.ID, status, result, errMsg)
+	_, err := s.evented.TransitionTask(context.Background(), taskID, models.StatusRunning, store.TransitionOptions{
+		Attempt:  attempt,
+		Metadata: models.RuntimeEventMetadata{WorkerID: workerID, Attempt: attempt, TaskID: taskID},
+	})
+	if err != nil {
+		s.logger.Warn("mark task started failed", "task_id", taskID, "error", err)
+		return
+	}
+	s.metrics.TasksRunning.Add(1)
+}
 
-	if status == models.StatusSuccess {
-		s.metrics.TasksSucceeded.Add(1)
+// OnTaskProgress records progress payload.
+func (s *Scheduler) OnTaskProgress(taskID, workerID string, progress json.RawMessage, attempt int) {
+	if s.evented == nil {
+		return
+	}
+	_, err := s.evented.TransitionTask(context.Background(), taskID, models.StatusRunning, store.TransitionOptions{
+		EventType: models.RuntimeEventProgress,
+		Progress:  progress,
+		Attempt:   attempt,
+		Metadata:  models.RuntimeEventMetadata{WorkerID: workerID, Attempt: attempt, TaskID: taskID},
+	})
+	if err != nil {
+		s.logger.Warn("record task progress failed", "task_id", taskID, "error", err)
+	}
+}
+
+// OnTaskSucceeded handles success transition and schedules dependents.
+func (s *Scheduler) OnTaskSucceeded(taskID, workerID string, output json.RawMessage, attempt int, handleID string) {
+	if s.evented != nil {
+		_, err := s.evented.TransitionTask(context.Background(), taskID, models.StatusSuccess, store.TransitionOptions{
+			Result:   output,
+			HandleID: handleID,
+			Attempt:  attempt,
+			Metadata: models.RuntimeEventMetadata{WorkerID: workerID, Attempt: attempt, TaskID: taskID},
+		})
+		if err != nil {
+			s.logger.Warn("mark task success failed", "task_id", taskID, "error", err)
+		}
 	} else {
-		s.metrics.TasksFailed.Add(1)
+		s.state.UpdateStatus(taskID, models.StatusSuccess, output, "")
+	}
+	s.metrics.TasksRunning.Add(-1)
+	s.metrics.TasksSucceeded.Add(1)
+
+	s.mu.Lock()
+	children := append([]string(nil), s.dependents[taskID]...)
+	for _, child := range children {
+		s.depCount[child]--
+	}
+	s.mu.Unlock()
+
+	for _, child := range children {
+		s.mu.Lock()
+		ready := s.depCount[child] <= 0
+		s.mu.Unlock()
+		if ready {
+			s.enqueueReady(child)
+		}
+	}
+}
+
+// OnTaskRetry schedules retry with delay.
+func (s *Scheduler) OnTaskRetry(taskID, workerID string, attempt int, runAt time.Time, errMsg string) {
+	if s.evented != nil {
+		_, err := s.evented.TransitionTask(context.Background(), taskID, models.StatusRetrying, store.TransitionOptions{
+			Error:    errMsg,
+			Attempt:  attempt,
+			Metadata: models.RuntimeEventMetadata{WorkerID: workerID, Attempt: attempt, TaskID: taskID},
+			Payload: map[string]any{
+				"retry_at": runAt,
+			},
+		})
+		if err != nil {
+			s.logger.Warn("mark task retrying failed", "task_id", taskID, "error", err)
+		} else {
+			_, readyErr := s.evented.TransitionTask(context.Background(), taskID, models.StatusReady, store.TransitionOptions{
+				EventType: models.RuntimeEventReady,
+				Attempt:   attempt,
+				Metadata:  models.RuntimeEventMetadata{WorkerID: workerID, Attempt: attempt, TaskID: taskID},
+				Payload: map[string]any{
+					"reason": "retry_scheduled",
+				},
+			})
+			if readyErr != nil {
+				s.logger.Warn("mark retried task ready failed", "task_id", taskID, "error", readyErr)
+			}
+		}
+	}
+	task, ok := s.state.Get(taskID)
+	if !ok {
+		return
+	}
+	s.metrics.TasksRunning.Add(-1)
+	_ = s.queue.EnqueueDelayed(context.Background(), taskID, task.Priority, attempt, runAt)
+}
+
+// OnTaskFailed handles failure transition and cascade skip behavior.
+func (s *Scheduler) OnTaskFailed(taskID, workerID string, output json.RawMessage, attempt int, errMsg string, handleID string) {
+	if s.evented != nil {
+		_, err := s.evented.TransitionTask(context.Background(), taskID, models.StatusFailed, store.TransitionOptions{
+			Result:   output,
+			Error:    errMsg,
+			HandleID: handleID,
+			Attempt:  attempt,
+			Metadata: models.RuntimeEventMetadata{WorkerID: workerID, Attempt: attempt, TaskID: taskID},
+		})
+		if err != nil {
+			s.logger.Warn("mark task failed failed", "task_id", taskID, "error", err)
+		}
+	} else {
+		s.state.UpdateStatus(taskID, models.StatusFailed, output, errMsg)
+	}
+	s.metrics.TasksRunning.Add(-1)
+	s.metrics.TasksFailed.Add(1)
+
+	s.mu.Lock()
+	children := append([]string(nil), s.dependents[taskID]...)
+	s.mu.Unlock()
+	for _, child := range children {
+		s.markSkippedCascade(child, "dependency "+taskID+" failed")
+	}
+
+	if task, ok := s.state.Get(taskID); ok {
+		for _, compTaskID := range task.CompensateWith {
+			s.enqueueReady(compTaskID)
+		}
+	}
+}
+
+func (s *Scheduler) markSkippedCascade(taskID, reason string) {
+	if s.evented != nil {
+		_, _ = s.evented.TransitionTask(context.Background(), taskID, models.StatusSkipped, store.TransitionOptions{
+			EventType: models.RuntimeEventFailed,
+			Error:     reason,
+		})
+	} else {
+		s.state.UpdateStatus(taskID, models.StatusSkipped, nil, reason)
 	}
 
 	s.mu.Lock()
-	defer s.mu.Unlock()
+	children := append([]string(nil), s.dependents[taskID]...)
+	s.mu.Unlock()
+	for _, child := range children {
+		s.markSkippedCascade(child, "dependency "+taskID+" skipped")
+	}
+}
 
-	children := s.dependents[task.ID]
-	for _, childID := range children {
-		if status == models.StatusFailed {
-			// 依赖失败 → 跳过下游 / dependency failed → skip downstream
-			if child, ok := s.state.Get(childID); ok {
-				child.Runtime = nil
-				child.RunStatus = ""
-			}
-			s.state.UpdateStatus(childID, models.StatusSkipped, nil, "dependency "+task.ID+" failed")
-			s.metrics.TasksFailed.Add(1)
-			s.cascadeSkip(childID)
+func (s *Scheduler) enqueueReady(taskID string) {
+	task, ok := s.state.Get(taskID)
+	if !ok {
+		return
+	}
+	if task.Status.IsTerminal() {
+		return
+	}
+
+	if s.evented != nil {
+		_, err := s.evented.TransitionTask(context.Background(), taskID, models.StatusReady, store.TransitionOptions{})
+		if err != nil {
+			s.logger.Warn("mark task ready failed", "task_id", taskID, "error", err)
+			return
+		}
+	}
+
+	if task.ScheduledAt != nil && task.ScheduledAt.After(time.Now().UTC()) {
+		_ = s.queue.EnqueueDelayed(context.Background(), taskID, task.Priority, task.Attempt, *task.ScheduledAt)
+		return
+	}
+	_ = s.queue.Enqueue(context.Background(), taskID, task.Priority, task.Attempt)
+}
+
+func (s *Scheduler) restoreGraphState() {
+	tasks := s.state.GetAll()
+	if len(tasks) == 0 {
+		return
+	}
+	s.mu.Lock()
+	s.depCount = make(map[string]int, len(tasks))
+	s.dependents = make(map[string][]string)
+	for _, task := range tasks {
+		if task.Status.IsTerminal() {
+			s.depCount[task.ID] = 0
 			continue
 		}
-
-		s.depCount[childID]--
-		if s.depCount[childID] <= 0 {
-			if child, ok := s.state.Get(childID); ok {
-				s.enqueue(child)
+		pendingDeps := 0
+		for _, dep := range task.DependsOn {
+			s.dependents[dep] = appendUnique(s.dependents[dep], task.ID)
+			depTask, ok := s.state.Get(dep)
+			if !ok || depTask.Status != models.StatusSuccess {
+				pendingDeps++
 			}
 		}
+		s.depCount[task.ID] = pendingDeps
 	}
-}
+	s.mu.Unlock()
 
-func resultOutput(r *executor.Result) json.RawMessage {
-	if r == nil {
-		return nil
-	}
-	return r.Output
-}
-
-// cascadeSkip 级联跳过所有下游依赖 / cascades skip to all downstream dependents.
-func (s *Scheduler) cascadeSkip(taskID string) {
-	if task, ok := s.state.Get(taskID); ok {
-		task.Runtime = nil
-		task.RunStatus = ""
-	}
-	for _, childID := range s.dependents[taskID] {
-		s.state.UpdateStatus(childID, models.StatusSkipped, nil, "dependency "+taskID+" skipped")
-		s.cascadeSkip(childID)
-	}
-}
-
-func buildRuntimeResult(status models.TaskStatus, execResult *executor.Result, runErr error, startedAt, finishedAt time.Time, attempt int) *models.RuntimeResult {
-	if execResult == nil && runErr == nil {
-		return nil
-	}
-
-	runtime := &models.RuntimeResult{
-		Status: runtimeStatusFromTask(status, runErr),
-	}
-	if execResult != nil {
-		if execResult.Status != "" {
-			runtime.Status = execResult.Status
+	ready := make([]*models.Task, 0)
+	for _, t := range tasks {
+		if t.Status.IsTerminal() {
+			continue
 		}
-		runtime.HandleID = execResult.HandleID
-		runtime.Attempt = execResult.Attempt
-		runtime.DurationMS = execResult.DurationMS
-		runtime.Output = cloneRaw(execResult.Output)
-		runtime.Details = cloneRaw(execResult.Details)
-		runtime.Error = cloneRuntimeError(execResult.Error)
-		runtime.StartedAt = cloneTime(execResult.StartedAt)
-		runtime.FinishedAt = cloneTime(execResult.FinishedAt)
-	}
-	if runtime.Attempt == 0 {
-		runtime.Attempt = attempt
-	}
-	if runtime.StartedAt == nil && !startedAt.IsZero() {
-		runtime.StartedAt = timePtr(startedAt)
-	}
-	if runtime.Status.IsTerminal() && runtime.FinishedAt == nil && !finishedAt.IsZero() {
-		runtime.FinishedAt = timePtr(finishedAt)
-	}
-	if runtime.DurationMS == 0 && runtime.StartedAt != nil && runtime.FinishedAt != nil {
-		runtime.DurationMS = runtime.FinishedAt.Sub(*runtime.StartedAt).Milliseconds()
-	}
-	if runtime.Error == nil && runErr != nil {
-		runtime.Error = normalizeRuntimeError(runErr)
-	}
-	return runtime
-}
-
-func runtimeStatusFromTask(status models.TaskStatus, runErr error) models.RuntimeStatus {
-	switch status {
-	case models.StatusSuccess:
-		return models.RuntimeSuccess
-	case models.StatusRunning:
-		return models.RuntimeRunning
-	case models.StatusFailed:
-		if errors.Is(runErr, context.Canceled) {
-			return models.RuntimeCancelled
-		}
-		return models.RuntimeFailed
-	default:
-		return models.RuntimeFailed
-	}
-}
-
-func normalizeRuntimeError(err error) *models.RuntimeError {
-	if err == nil {
-		return nil
-	}
-	switch {
-	case errors.Is(err, context.DeadlineExceeded):
-		return &models.RuntimeError{
-			Code:      models.ErrorTimeout,
-			Message:   err.Error(),
-			Retryable: true,
-			Source:    "scheduler",
-		}
-	case errors.Is(err, context.Canceled):
-		return &models.RuntimeError{
-			Code:    models.ErrorCancelled,
-			Message: err.Error(),
-			Source:  "scheduler",
-		}
-	default:
-		return &models.RuntimeError{
-			Code:    models.ErrorExternalFailure,
-			Message: err.Error(),
-			Source:  "executor",
+		s.mu.Lock()
+		deps := s.depCount[t.ID]
+		s.mu.Unlock()
+		if deps == 0 {
+			ready = append(ready, t)
 		}
 	}
-}
-
-func cloneRaw(raw json.RawMessage) json.RawMessage {
-	if len(raw) == 0 {
-		return nil
-	}
-	cp := make(json.RawMessage, len(raw))
-	copy(cp, raw)
-	return cp
-}
-
-func cloneRuntimeError(err *models.RuntimeError) *models.RuntimeError {
-	if err == nil {
-		return nil
-	}
-	cp := *err
-	return &cp
-}
-
-func cloneTime(t *time.Time) *time.Time {
-	if t == nil {
-		return nil
-	}
-	cp := *t
-	return &cp
-}
-
-func timePtr(t time.Time) *time.Time {
-	return &t
-}
-
-func (s *Scheduler) awaitRuntimeResult(
-	ctx context.Context,
-	exec executor.Executor,
-	initial *executor.Result,
-	logger *slog.Logger,
-	startedAt time.Time,
-	attempt int,
-	task *models.Task,
-) (*executor.Result, error) {
-	if initial == nil {
-		return nil, fmt.Errorf("async runtime wait requires initial result")
-	}
-	if initial.HandleID == "" {
-		return initial, fmt.Errorf("non-terminal runtime result missing handle_id")
-	}
-
-	reader, ok := exec.(executor.HandleReader)
-	if !ok {
-		return initial, fmt.Errorf("executor %q returned non-terminal status %q without handle polling support", exec.Name(), initial.Status)
-	}
-
-	ticker := time.NewTicker(asyncHandlePollInterval)
-	defer ticker.Stop()
-
-	current := initial
-	for {
-		if current != nil {
-			s.applyInFlightRuntime(task, current, startedAt, attempt)
-			if current.Status.IsTerminal() {
-				return current, runtimeResultError(current)
-			}
+	sort.Slice(ready, func(i, j int) bool {
+		if ready[i].Priority != ready[j].Priority {
+			return ready[i].Priority > ready[j].Priority
 		}
+		return ready[i].CreatedAt.Before(ready[j].CreatedAt)
+	})
+	for _, task := range ready {
+		s.enqueueReady(task.ID)
+	}
+}
 
-		select {
-		case <-ctx.Done():
-			logger.Warn("async task wait interrupted", "handle_id", initial.HandleID, "error", ctx.Err())
-			return current, ctx.Err()
-		case <-ticker.C:
-			next, found := reader.GetHandle(initial.HandleID)
-			if !found {
-				logger.Warn("async handle not found during polling", "handle_id", initial.HandleID)
-				return current, fmt.Errorf("handle not found: %s", initial.HandleID)
-			}
-			if next.Attempt == 0 {
-				next.Attempt = attempt
-			}
-			current = next
+func appendUnique(items []string, value string) []string {
+	for _, item := range items {
+		if item == value {
+			return items
 		}
 	}
-}
-
-func runtimeResultError(res *executor.Result) error {
-	if res == nil {
-		return nil
-	}
-	switch res.Status {
-	case models.RuntimeSuccess:
-		return nil
-	case models.RuntimeCancelled:
-		if res.Error != nil && res.Error.Message != "" {
-			return canceledError{message: res.Error.Message}
-		}
-		return canceledError{message: "task cancelled"}
-	case models.RuntimeFailed:
-		if res.Error != nil && res.Error.Message != "" {
-			return errors.New(res.Error.Message)
-		}
-		return errors.New("task failed")
-	default:
-		return nil
-	}
-}
-
-func (s *Scheduler) applyInFlightRuntime(task *models.Task, execResult *executor.Result, startedAt time.Time, attempt int) {
-	if execResult == nil {
-		return
-	}
-	runtime := buildRuntimeResult(models.StatusRunning, execResult, nil, startedAt, time.Time{}, attempt)
-	if runtime == nil {
-		return
-	}
-	task.Runtime = runtime
-	task.RunStatus = string(runtime.Status)
-	task.HandleID = runtime.HandleID
-	if len(execResult.Progress) > 0 {
-		progress, _ := json.Marshal(execResult.Progress)
-		task.Progress = progress
-	}
-}
-
-type canceledError struct {
-	message string
-}
-
-func (e canceledError) Error() string {
-	if e.message != "" {
-		return e.message
-	}
-	return "task cancelled"
+	return append(items, value)
 }

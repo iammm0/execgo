@@ -6,11 +6,26 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"log/slog"
 	"net/http"
 	"os"
 	"sync"
 	"sync/atomic"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	otelprom "go.opentelemetry.io/otel/exporters/prometheus"
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/propagation"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/resource"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	semconv "go.opentelemetry.io/otel/semconv/v1.37.0"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // ----------------------------------------------------------------
@@ -20,6 +35,8 @@ import (
 type ctxKey string
 
 const traceIDKey ctxKey = "trace_id"
+
+const tracerName = "execgo/runtime"
 
 // NewTraceID 生成 16 字节十六进制追踪 ID / generates a 16-byte hex trace ID.
 func NewTraceID() string {
@@ -70,6 +87,11 @@ func L(ctx context.Context, logger *slog.Logger) *slog.Logger {
 func TraceMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		traceID := r.Header.Get("X-Trace-ID")
+		if traceID == "" {
+			if spanCtx := trace.SpanContextFromContext(r.Context()); spanCtx.IsValid() {
+				traceID = spanCtx.TraceID().String()
+			}
+		}
 		if traceID == "" {
 			traceID = NewTraceID()
 		}
@@ -130,4 +152,178 @@ func (m *Metrics) Snapshot() map[string]int64 {
 	}
 
 	return byType
+}
+
+// RuntimeConfig controls OpenTelemetry runtime initialization.
+type RuntimeConfig struct {
+	ServiceName string
+}
+
+// Runtime wires OTel providers and HTTP integrations.
+type Runtime struct {
+	logger *slog.Logger
+
+	tracerProvider *sdktrace.TracerProvider
+	meterProvider  *sdkmetric.MeterProvider
+	promRegistry   *prometheus.Registry
+	promHandler    http.Handler
+}
+
+// InitRuntime initializes OpenTelemetry providers and bridges legacy in-memory
+// metrics into a Prometheus scrape endpoint.
+func InitRuntime(_ context.Context, cfg RuntimeConfig, m *Metrics, logger *slog.Logger) (*Runtime, error) {
+	if logger == nil {
+		logger = slog.Default()
+	}
+	if cfg.ServiceName == "" {
+		cfg.ServiceName = "execgo"
+	}
+
+	res, err := resource.Merge(
+		resource.Default(),
+		resource.NewSchemaless(
+			semconv.ServiceName(cfg.ServiceName),
+		),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	promRegistry := prometheus.NewRegistry()
+	promExporter, err := otelprom.New(
+		otelprom.WithRegisterer(promRegistry),
+		otelprom.WithResourceAsConstantLabels(func(kv attribute.KeyValue) bool {
+			return kv.Key == semconv.ServiceNameKey
+		}),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	meterProvider := sdkmetric.NewMeterProvider(
+		sdkmetric.WithReader(promExporter),
+		sdkmetric.WithResource(res),
+	)
+	tracerProvider := sdktrace.NewTracerProvider(
+		sdktrace.WithSampler(sdktrace.ParentBased(sdktrace.TraceIDRatioBased(1.0))),
+		sdktrace.WithResource(res),
+	)
+
+	otel.SetTracerProvider(tracerProvider)
+	otel.SetMeterProvider(meterProvider)
+	otel.SetTextMapPropagator(
+		propagation.NewCompositeTextMapPropagator(
+			propagation.TraceContext{},
+			propagation.Baggage{},
+		),
+	)
+
+	meter := meterProvider.Meter(tracerName)
+	if err := registerLegacyMetricsBridge(meter, m); err != nil {
+		return nil, err
+	}
+
+	logger.Info("observability runtime initialized", "service_name", cfg.ServiceName)
+	return &Runtime{
+		logger:         logger,
+		tracerProvider: tracerProvider,
+		meterProvider:  meterProvider,
+		promRegistry:   promRegistry,
+		promHandler:    promhttp.HandlerFor(promRegistry, promhttp.HandlerOpts{}),
+	}, nil
+}
+
+// HTTPMiddleware returns OTel HTTP middleware and maintains X-Trace-ID
+// compatibility for existing clients/logging.
+func (r *Runtime) HTTPMiddleware() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		if next == nil {
+			next = http.NotFoundHandler()
+		}
+		traceAware := TraceMiddleware(next)
+		return otelhttp.NewHandler(traceAware, "execgo.http.request")
+	}
+}
+
+// PrometheusHandler returns a scrape handler for OTel+legacy runtime metrics.
+func (r *Runtime) PrometheusHandler() http.Handler {
+	if r == nil {
+		return nil
+	}
+	return r.promHandler
+}
+
+// Shutdown flushes and stops telemetry providers.
+func (r *Runtime) Shutdown(ctx context.Context) error {
+	if r == nil {
+		return nil
+	}
+	var err error
+	if r.meterProvider != nil {
+		err = errors.Join(err, r.meterProvider.Shutdown(ctx))
+	}
+	if r.tracerProvider != nil {
+		err = errors.Join(err, r.tracerProvider.Shutdown(ctx))
+	}
+	return err
+}
+
+// StartSpan starts a named span from the global provider.
+func StartSpan(ctx context.Context, name string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
+	return otel.Tracer(tracerName).Start(ctx, name, opts...)
+}
+
+func registerLegacyMetricsBridge(meter metric.Meter, m *Metrics) error {
+	if m == nil {
+		return nil
+	}
+
+	tasksTotal, err := meter.Int64ObservableGauge(
+		"execgo_tasks_total",
+		metric.WithDescription("Total accepted tasks"),
+	)
+	if err != nil {
+		return err
+	}
+	tasksRunning, err := meter.Int64ObservableGauge(
+		"execgo_tasks_running",
+		metric.WithDescription("Currently running tasks"),
+	)
+	if err != nil {
+		return err
+	}
+	tasksSucceeded, err := meter.Int64ObservableGauge(
+		"execgo_tasks_succeeded_total",
+		metric.WithDescription("Total succeeded tasks"),
+	)
+	if err != nil {
+		return err
+	}
+	tasksFailed, err := meter.Int64ObservableGauge(
+		"execgo_tasks_failed_total",
+		metric.WithDescription("Total failed tasks"),
+	)
+	if err != nil {
+		return err
+	}
+	tasksByType, err := meter.Int64ObservableGauge(
+		"execgo_tasks_by_type_total",
+		metric.WithDescription("Tasks grouped by task type"),
+	)
+	if err != nil {
+		return err
+	}
+
+	_, err = meter.RegisterCallback(func(_ context.Context, o metric.Observer) error {
+		o.ObserveInt64(tasksTotal, m.TasksTotal.Load())
+		o.ObserveInt64(tasksRunning, m.TasksRunning.Load())
+		o.ObserveInt64(tasksSucceeded, m.TasksSucceeded.Load())
+		o.ObserveInt64(tasksFailed, m.TasksFailed.Load())
+		for taskType, count := range m.Snapshot() {
+			o.ObserveInt64(tasksByType, count, metric.WithAttributes(attribute.String("task_type", taskType)))
+		}
+		return nil
+	}, tasksTotal, tasksRunning, tasksSucceeded, tasksFailed, tasksByType)
+
+	return err
 }

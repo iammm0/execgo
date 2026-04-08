@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -25,6 +26,7 @@ type Engine struct {
 	scheduler *scheduler.Scheduler
 	metrics   *observability.Metrics
 	logger    *slog.Logger
+	promHTTP  http.Handler
 	startTime time.Time
 	mw        []Middleware
 	trace     bool
@@ -54,6 +56,13 @@ func (e *Engine) DisableTrace() *Engine {
 	return e
 }
 
+// WithPrometheusHandler mounts a dedicated Prometheus scrape handler without
+// changing the legacy JSON /metrics behavior.
+func (e *Engine) WithPrometheusHandler(handler http.Handler) *Engine {
+	e.promHTTP = handler
+	return e
+}
+
 func (e *Engine) routesMux() *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /tasks", e.handleSubmitTasks)
@@ -63,7 +72,10 @@ func (e *Engine) routesMux() *http.ServeMux {
 	mux.HandleFunc("GET /tasks/{id}", e.handleGetTask)
 	mux.HandleFunc("GET /tasks", e.handleListTasks)
 	mux.HandleFunc("DELETE /tasks/{id}", e.handleDeleteTask)
+	mux.HandleFunc("GET /workers", e.handleListWorkers)
+	mux.HandleFunc("GET /events", e.handleListEvents)
 	mux.HandleFunc("GET /health", e.handleHealth)
+	mux.HandleFunc("GET /metrics/prometheus", e.handlePrometheusMetrics)
 	mux.HandleFunc("GET /metrics", e.handleMetrics)
 	return mux
 }
@@ -119,7 +131,7 @@ func (e *Engine) handleSubmitTasks(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	e.scheduler.Submit(&graph)
+	e.scheduler.SubmitWithContext(ctx, &graph)
 	logger.Info("task graph submitted", "task_count", len(graph.Tasks))
 
 	ids := make([]string, len(graph.Tasks))
@@ -222,6 +234,38 @@ func (e *Engine) handleDeleteTask(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (e *Engine) handleListWorkers(w http.ResponseWriter, r *http.Request) {
+	es, ok := e.state.(store.EventBackedStore)
+	if !ok {
+		writeJSON(w, http.StatusNotImplemented, models.ErrorResponse{Error: "worker registry is unavailable on current store backend"})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"workers": es.ListWorkers(),
+	})
+}
+
+func (e *Engine) handleListEvents(w http.ResponseWriter, r *http.Request) {
+	es, ok := e.state.(store.EventBackedStore)
+	if !ok {
+		writeJSON(w, http.StatusNotImplemented, models.ErrorResponse{Error: "event log is unavailable on current store backend"})
+		return
+	}
+	after, _ := strconv.ParseInt(r.URL.Query().Get("after"), 10, 64)
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	if limit <= 0 {
+		limit = 100
+	}
+	evs, err := es.EventStore().LoadGlobal(r.Context(), after, limit)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, models.ErrorResponse{Error: err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"events": evs,
+	})
+}
+
 func (e *Engine) handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, models.HealthResponse{
 		Status:  "ok",
@@ -238,6 +282,14 @@ func (e *Engine) handleMetrics(w http.ResponseWriter, r *http.Request) {
 		TasksFailed:    e.metrics.TasksFailed.Load(),
 		ByType:         e.metrics.Snapshot(),
 	})
+}
+
+func (e *Engine) handlePrometheusMetrics(w http.ResponseWriter, r *http.Request) {
+	if e.promHTTP == nil {
+		writeJSON(w, http.StatusNotImplemented, models.ErrorResponse{Error: "prometheus exporter is not configured"})
+		return
+	}
+	e.promHTTP.ServeHTTP(w, r)
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

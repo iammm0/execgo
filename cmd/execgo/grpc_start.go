@@ -13,6 +13,7 @@ import (
 	"github.com/iammm0/execgo/pkg/scheduler"
 	"github.com/iammm0/execgo/pkg/store"
 
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 )
 
@@ -27,8 +28,11 @@ func startGRPCServer(addr string, st store.Store, sched *scheduler.Scheduler, me
 		return nil, err
 	}
 
-	grpcSrv := grpc.NewServer()
+	grpcSrv := grpc.NewServer(
+		grpc.StatsHandler(otelgrpc.NewServerHandler()),
+	)
 	execgov1.RegisterExecGoServer(grpcSrv, grpcserver.NewServer(st, sched, metrics, logger))
+	execgov1.RegisterWorkerControlServer(grpcSrv, grpcserver.NewWorkerControlServer(st, sched, logger))
 
 	go func() {
 		logger.Info("gRPC server listening", "addr", addr)
@@ -42,4 +46,3 @@ func startGRPCServer(addr string, st store.Store, sched *scheduler.Scheduler, me
 		grpcSrv.GracefulStop()
 	}, nil
 }
-

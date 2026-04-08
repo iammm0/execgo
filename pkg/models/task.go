@@ -1,51 +1,86 @@
-// Package models 定义 ExecGo 的核心数据结构 / core data structures for ExecGo.
+// Package models defines ExecGo core data structures.
 package models
 
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"time"
 )
 
-// TaskStatus 任务状态枚举 / task status enum.
+// TaskStatus defines task lifecycle statuses.
 type TaskStatus string
 
 const (
-	StatusPending TaskStatus = "pending"
-	StatusRunning TaskStatus = "running"
-	StatusSuccess TaskStatus = "success"
-	StatusFailed  TaskStatus = "failed"
-	StatusSkipped TaskStatus = "skipped" // 依赖失败时跳过 / skipped when dependency fails
+	StatusPending      TaskStatus = "pending"
+	StatusReady        TaskStatus = "ready"
+	StatusLeased       TaskStatus = "leased"
+	StatusRunning      TaskStatus = "running"
+	StatusRetrying     TaskStatus = "retrying"
+	StatusSuccess      TaskStatus = "success"
+	StatusFailed       TaskStatus = "failed"
+	StatusCancelled    TaskStatus = "cancelled"
+	StatusTimedOut     TaskStatus = "timed_out"
+	StatusCompensating TaskStatus = "compensating"
+	StatusCompensated  TaskStatus = "compensated"
+	StatusSkipped      TaskStatus = "skipped"
 )
 
-// Task 是 AI 与执行引擎之间的核心契约 / core contract between AI and execution engine.
+// IsTerminal reports whether task status is terminal.
+func (s TaskStatus) IsTerminal() bool {
+	switch s {
+	case StatusSuccess, StatusFailed, StatusCancelled, StatusTimedOut, StatusCompensated, StatusSkipped:
+		return true
+	default:
+		return false
+	}
+}
+
+// Task is the core execution unit between AI and runtime.
 type Task struct {
-	ID        string          `json:"id"`
-	Type      string          `json:"type"`
-	Params    json.RawMessage `json:"params,omitempty"`
-	ToolName  string          `json:"tool_name,omitempty"`
-	Input     json.RawMessage `json:"input,omitempty"`
-	Category  string          `json:"execution_category,omitempty"` // mcp | cli-skills | os
-	DependsOn []string        `json:"depends_on,omitempty"`
-	Retry     int             `json:"retry,omitempty"`
-	Timeout   int64           `json:"timeout,omitempty"` // 毫秒 / milliseconds
+	ID         string          `json:"id"`
+	WorkflowID string          `json:"workflow_id,omitempty"`
+	Type       string          `json:"type"`
+	Params     json.RawMessage `json:"params,omitempty"`
+	ToolName   string          `json:"tool_name,omitempty"`
+	Input      json.RawMessage `json:"input,omitempty"`
+	Category   string          `json:"execution_category,omitempty"` // mcp | cli-skills | os | plugin
+
+	DependsOn      []string `json:"depends_on,omitempty"`
+	CompensateWith []string `json:"compensate_with,omitempty"`
+
+	Retry       int        `json:"retry,omitempty"`
+	Priority    int        `json:"priority,omitempty"` // 0~9, 9 highest
+	ScheduledAt *time.Time `json:"scheduled_at,omitempty"`
+	Timeout     int64      `json:"timeout,omitempty"` // milliseconds
+
 	Status    TaskStatus      `json:"status"`
-	RunStatus string          `json:"run_status,omitempty"` // accepted | running | success | failed | cancelled
+	RunStatus string          `json:"run_status,omitempty"`
 	HandleID  string          `json:"handle_id,omitempty"`
 	Progress  json.RawMessage `json:"progress,omitempty"`
 	Result    json.RawMessage `json:"result,omitempty"`
-	Runtime   *RuntimeResult  `json:"runtime,omitempty"` // 规范化运行时结果 / normalized runtime envelope
+	Runtime   *RuntimeResult  `json:"runtime,omitempty"`
 	Error     string          `json:"error,omitempty"`
-	CreatedAt time.Time       `json:"created_at"`
-	UpdatedAt time.Time       `json:"updated_at"`
+
+	Attempt         int       `json:"attempt,omitempty"`
+	Version         int64     `json:"version,omitempty"`
+	ExpectedVersion int64     `json:"expected_version,omitempty"`
+	LeaseOwner      string    `json:"lease_owner,omitempty"`
+	LeaseUntil      time.Time `json:"lease_until,omitempty"`
+
+	RemainingDeps int       `json:"remaining_deps,omitempty"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
 }
 
-// TaskGraph 是一次提交的任务 DAG / a submitted task DAG.
+// TaskGraph defines one submitted DAG batch.
 type TaskGraph struct {
-	Tasks []*Task `json:"tasks"`
+	WorkflowID     string  `json:"workflow_id,omitempty"`
+	IdempotencyKey string  `json:"idempotency_key,omitempty"`
+	Tasks          []*Task `json:"tasks"`
 }
 
-// Validate 校验任务图的合法性 / validates the task graph.
+// Validate checks graph correctness.
 func (g *TaskGraph) Validate() error {
 	if len(g.Tasks) == 0 {
 		return fmt.Errorf("task graph is empty")
@@ -63,9 +98,18 @@ func (g *TaskGraph) Validate() error {
 			return fmt.Errorf("duplicate task id: %q", t.ID)
 		}
 		ids[t.ID] = true
+
+		if t.Priority < 0 || t.Priority > 9 {
+			return fmt.Errorf("task %q: priority must be in [0,9]", t.ID)
+		}
+		if t.Retry < 0 {
+			return fmt.Errorf("task %q: retry cannot be negative", t.ID)
+		}
+		if t.Timeout < 0 {
+			return fmt.Errorf("task %q: timeout cannot be negative", t.ID)
+		}
 	}
 
-	// 检查依赖引用是否合法 / verify dependency references
 	for _, t := range g.Tasks {
 		for _, dep := range t.DependsOn {
 			if !ids[dep] {
@@ -75,18 +119,25 @@ func (g *TaskGraph) Validate() error {
 				return fmt.Errorf("task %q cannot depend on itself", t.ID)
 			}
 		}
+		for _, comp := range t.CompensateWith {
+			if !ids[comp] {
+				return fmt.Errorf("task %q compensation references unknown task %q", t.ID, comp)
+			}
+			if comp == t.ID {
+				return fmt.Errorf("task %q cannot compensate itself", t.ID)
+			}
+		}
 	}
 
-	// 拓扑排序检测环 / cycle detection via topological sort
-	if err := detectCycle(g.Tasks); err != nil {
+	if _, err := TopologicalOrder(g.Tasks); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-// detectCycle 使用 Kahn 算法检测 DAG 中的环 / detect cycles using Kahn's algorithm.
-func detectCycle(tasks []*Task) error {
+// TopologicalOrder returns DAG topological order using Kahn algorithm.
+func TopologicalOrder(tasks []*Task) ([]string, error) {
 	inDegree := make(map[string]int, len(tasks))
 	dependents := make(map[string][]string, len(tasks))
 
@@ -106,12 +157,13 @@ func detectCycle(tasks []*Task) error {
 			queue = append(queue, id)
 		}
 	}
+	sort.Strings(queue)
 
-	visited := 0
+	order := make([]string, 0, len(tasks))
 	for len(queue) > 0 {
 		node := queue[0]
 		queue = queue[1:]
-		visited++
+		order = append(order, node)
 
 		for _, child := range dependents[node] {
 			inDegree[child]--
@@ -119,37 +171,50 @@ func detectCycle(tasks []*Task) error {
 				queue = append(queue, child)
 			}
 		}
+		sort.Strings(queue)
 	}
 
-	if visited != len(tasks) {
-		return fmt.Errorf("cycle detected in task graph")
+	if len(order) != len(tasks) {
+		return nil, fmt.Errorf("cycle detected in task graph")
 	}
-	return nil
+	return order, nil
 }
 
-// SubmitResponse 提交任务后的响应 / response after task submission.
+// SubmitResponse is returned after /tasks submission.
 type SubmitResponse struct {
-	Accepted int      `json:"accepted"`
-	TaskIDs  []string `json:"task_ids"`
+	Accepted      int      `json:"accepted"`
+	TaskIDs       []string `json:"task_ids"`
+	WorkflowID    string   `json:"workflow_id,omitempty"`
+	IdempotentHit bool     `json:"idempotent_hit,omitempty"`
 }
 
-// ErrorResponse 统一错误响应 / unified error response.
+// ErrorResponse is unified error payload.
 type ErrorResponse struct {
 	Error string `json:"error"`
 }
 
-// HealthResponse 健康检查响应 / health check response.
+// HealthResponse is /health payload.
 type HealthResponse struct {
 	Status  string `json:"status"`
 	Version string `json:"version"`
 	Uptime  string `json:"uptime"`
 }
 
-// MetricsResponse 指标响应 / metrics response.
+// MetricsResponse is legacy JSON metrics payload.
 type MetricsResponse struct {
 	TasksTotal     int64            `json:"tasks_total"`
 	TasksRunning   int64            `json:"tasks_running"`
 	TasksSucceeded int64            `json:"tasks_succeeded"`
 	TasksFailed    int64            `json:"tasks_failed"`
 	ByType         map[string]int64 `json:"by_type"`
+}
+
+// WorkerNode tracks worker liveness/capabilities.
+type WorkerNode struct {
+	ID           string            `json:"id"`
+	Capabilities map[string]string `json:"capabilities,omitempty"`
+	Status       string            `json:"status"`
+	LastSeenAt   time.Time         `json:"last_seen_at"`
+	CreatedAt    time.Time         `json:"created_at"`
+	UpdatedAt    time.Time         `json:"updated_at"`
 }
