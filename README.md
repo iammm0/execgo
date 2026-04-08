@@ -29,7 +29,7 @@ ExecGo 更适合被理解为一个面向 AI Agent 的执行内核（execution ke
 | **Pluggable Executors V2** | 内置 `os` / `mcp` / `cli-skills` 三大类；`os` 内含 shell/file/dns/tcp/sleep/noop/http 工具 |
 | **Retry & Timeout** | 指数退避重试 + context 超时控制 |
 | **State Persistence** | 内存存储 + JSON 文件定期持久化，崩溃恢复 |
-| **Observability** | 结构化 JSON 日志 (slog) + traceID 追踪 + /metrics 端点 |
+| **Observability** | 结构化 JSON 日志 (slog) + OpenTelemetry tracing + `/metrics`(JSON) + `/metrics/prometheus` |
 | **Graceful Shutdown** | 信号监听 → HTTP 关闭 → 调度器停止 → 状态持久化 |
 
 ---
@@ -37,27 +37,30 @@ ExecGo 更适合被理解为一个面向 AI Agent 的执行内核（execution ke
 ## 架构 | Architecture
 
 ```
-┌─────────────────────────────────────────────────────┐
-│                    AI Agent (secbot)                 │
-│              POST /tasks  ←→  GET /tasks/{id}       │
-└─────────────────────┬───────────────────────────────┘
-                      │ HTTP/JSON
-┌─────────────────────▼───────────────────────────────┐
-│                   API Layer (net/http)               │
-│  POST /tasks │ GET /tasks/{id} │ DELETE │ /health   │
-├─────────────────────┬───────────────────────────────┤
-│               Scheduler (DAG)                       │
-│  readyQueue(chan) │ semaphore │ dependency counter   │
-├──────────┬──────────┬──────────┬────────────────────┤
-│ OS       │ MCP      │ CLI+Skill│ ... (extensible)   │
-│ Category │ Category │ Category │                    │
-├──────────┴──────────┴──────────┴────────────────────┤
-│              Store (store.Store)                    │
-│   jsonfile (default) │ sqlite │ + Redis (contrib)  │
-├─────────────────────────────────────────────────────┤
-│            Observability                            │
-│    slog/JSON │ traceID │ /metrics                   │
-└─────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                         Control Plane                           │
+│ HTTP `/tasks` + gRPC(ExecGo/WorkerControl) + FSM + Scheduler   │
+└──────────────────────┬───────────────────────────┬──────────────┘
+                       │                           │
+              append-only events            ready/delayed/retry
+                       │                           │
+┌──────────────────────▼───────────────┐   ┌──────▼──────────────────────┐
+│ Event Store (source of truth)        │   │ Queue Plane (Task Queue)    │
+│ memory | SQLite(dev) | Postgres(prod)│   │ memory | Redis Streams      │
+└──────────────────────┬───────────────┘   └──────┬──────────────────────┘
+                       │ replay/project            │ lease/ack/nack
+                       │                           │
+                ┌──────▼───────────────────────────▼──────┐
+                │ Worker Plane (local/remote worker pool) │
+                │ executor + sandbox(local/docker)        │
+                └───────────────────┬──────────────────────┘
+                                    │
+                           ┌────────▼────────┐
+                           │ Observability   │
+                           │ OTel traces     │
+                           │ /metrics JSON   │
+                           │ /metrics/prom   │
+                           └─────────────────┘
 ```
 
 ---
@@ -78,6 +81,37 @@ go build -o execgo ./cmd/execgo
 
 # 环境变量 / Environment variables
 EXECGO_ADDR=:9090 EXECGO_MAX_CONCURRENCY=20 ./execgo
+```
+
+### 分布式运行时模式 | Distributed Runtime Mode
+
+ExecGo 已支持 `Event Sourcing + Queue + Worker` 运行模式（默认本地内存后端，可切换为 SQLite/Postgres + Redis）：
+
+```bash
+# 本地开发：SQLite 事件日志 + 内存队列
+EXECGO_EVENT_STORE_BACKEND=sqlite \
+EXECGO_EVENT_STORE_SQLITE_PATH=./data/eventlog.sqlite \
+EXECGO_QUEUE_BACKEND=memory \
+./execgo
+
+# 生产参考：Postgres 事件日志 + Redis Streams 队列
+EXECGO_EVENT_STORE_BACKEND=postgres \
+EXECGO_EVENT_STORE_POSTGRES_DSN='postgres://user:pass@127.0.0.1:5432/execgo?sslmode=disable' \
+EXECGO_QUEUE_BACKEND=redis \
+EXECGO_REDIS_ADDR=127.0.0.1:6379 \
+EXECGO_WORKER_ID=worker-a \
+EXECGO_WORKER_CONCURRENCY=16 \
+./execgo
+```
+
+可选沙箱：
+
+```bash
+# Docker 沙箱（默认仍可使用 local）
+EXECGO_SANDBOX_MODE=docker \
+EXECGO_DOCKER_IMAGE=alpine:3.21 \
+EXECGO_DOCKER_NO_NETWORK=true \
+./execgo
 ```
 
 ### 提交任务 | Submit Tasks
@@ -146,6 +180,9 @@ curl http://localhost:8080/health
 
 # 指标 / Metrics
 curl http://localhost:8080/metrics
+
+# Prometheus 拉取端点 / Prometheus scrape endpoint
+curl http://localhost:8080/metrics/prometheus
 ```
 
 ---

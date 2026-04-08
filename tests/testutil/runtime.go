@@ -8,18 +8,21 @@ import (
 	"testing"
 	"time"
 
+	"github.com/iammm0/execgo/pkg/events"
 	"github.com/iammm0/execgo/pkg/httpserver"
 	"github.com/iammm0/execgo/pkg/models"
 	"github.com/iammm0/execgo/pkg/observability"
 	"github.com/iammm0/execgo/pkg/scheduler"
 	"github.com/iammm0/execgo/pkg/store"
-	"github.com/iammm0/execgo/pkg/store/jsonfile"
+	"github.com/iammm0/execgo/pkg/store/eventsourced"
+	"github.com/iammm0/execgo/pkg/worker"
 )
 
-// Runtime bundles store/scheduler/metrics for tests.
+// Runtime bundles store/scheduler/metrics/worker for tests.
 type Runtime struct {
 	Store     store.Store
 	Scheduler *scheduler.Scheduler
+	Worker    *worker.Worker
 	Metrics   *observability.Metrics
 	Logger    *slog.Logger
 }
@@ -28,18 +31,34 @@ func NewRuntime(t *testing.T, maxConcurrency int) *Runtime {
 	t.Helper()
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	mgr, err := jsonfile.NewManager(t.TempDir(), logger)
+	mgr, err := eventsourced.NewManager(events.NewMemoryStore(), logger)
 	if err != nil {
 		t.Fatalf("init state manager: %v", err)
 	}
 	metrics := observability.NewMetrics()
 	s := scheduler.New(mgr, metrics, logger, maxConcurrency)
 	s.Start(context.Background())
-	t.Cleanup(s.Stop)
+
+	w := worker.New(worker.Config{
+		ID:                "test-worker",
+		Concurrency:       maxConcurrency,
+		PollWait:          50 * time.Millisecond,
+		LeaseDuration:     2 * time.Second,
+		HeartbeatInterval: 200 * time.Millisecond,
+		RetryBaseBackoff:  20 * time.Millisecond,
+		RetryMaxBackoff:   200 * time.Millisecond,
+	}, mgr, s, logger)
+	w.Start(context.Background())
+
+	t.Cleanup(func() {
+		w.Stop()
+		s.Stop()
+	})
 
 	return &Runtime{
 		Store:     mgr,
 		Scheduler: s,
+		Worker:    w,
 		Metrics:   metrics,
 		Logger:    logger,
 	}
@@ -59,7 +78,7 @@ func WaitTaskInStore(t *testing.T, st store.Store, taskID string, timeout time.D
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
 		task, ok := st.Get(taskID)
-		if ok && (task.Status == models.StatusSuccess || task.Status == models.StatusFailed || task.Status == models.StatusSkipped) {
+		if ok && task.Status.IsTerminal() {
 			return task
 		}
 		time.Sleep(20 * time.Millisecond)
