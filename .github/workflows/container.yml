@@ -1,0 +1,126 @@
+name: Container (GHCR)
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "要构建的 Git ref（例如 v1.0.0、main、某个 commit sha）"
+        required: true
+        default: "v1.0.0"
+        type: string
+      image:
+        description: "镜像名称（不含 registry），例如 execgo；最终为 ghcr.io/<NAMESPACE>/<image>"
+        required: true
+        default: "execgo"
+        type: string
+      namespace:
+        description: "命名空间（默认使用仓库 owner）；最终为 ghcr.io/<namespace>/<image>"
+        required: false
+        default: ""
+        type: string
+      export_amd64_tar:
+        description: "同时导出 linux/amd64 镜像为 tar（artifact）"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Resolve image
+        id: img
+        run: |
+          set -euo pipefail
+          ns="${{ inputs.namespace }}"
+          if [ -z "${ns}" ]; then
+            ns="${{ github.repository_owner }}"
+          fi
+          name="${{ inputs.image }}"
+          if [ -z "${name}" ]; then
+            name="execgo"
+          fi
+          echo "image=ghcr.io/${ns}/${name}" >> "${GITHUB_OUTPUT}"
+
+      - name: Setup QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.img.outputs.image }}
+          tags: |
+            type=ref,event=branch
+            type=sha,format=short,prefix=sha-
+            type=ref,event=tag
+            type=semver,pattern={{version}}
+          flavor: |
+            latest=${{ startsWith(github.ref, 'refs/heads/main') || startsWith(inputs.ref || '', 'main') }}
+
+      - name: Build and push (multi-arch)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          provenance: false
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build linux/amd64 tar (optional)
+        if: ${{ inputs.export_amd64_tar }}
+        run: |
+          set -euo pipefail
+          img="${{ steps.img.outputs.image }}"
+          ref="${{ inputs.ref || github.ref_name }}"
+          # 统一一个可读的 artifact 名称（不强依赖 metadata-action 的 tag 输出）
+          safe_ref="${ref//\//_}"
+          tag="${safe_ref}"
+          docker buildx build \
+            --platform linux/amd64 \
+            --file ./Dockerfile \
+            --load \
+            --tag "${img}:${tag}" \
+            .
+          docker save "${img}:${tag}" -o "execgo_${tag}_linux_amd64.tar"
+
+      - name: Upload tar artifact (optional)
+        if: ${{ inputs.export_amd64_tar }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: execgo_image_linux_amd64
+          path: execgo_*_linux_amd64.tar
+          if-no-files-found: error
