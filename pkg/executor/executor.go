@@ -35,6 +35,27 @@ type HandleReader interface {
 	GetHandle(handleID string) (*Result, bool)
 }
 
+// HandleCanceler is an optional capability for executors that can cancel
+// asynchronous tasks by handle identifier.
+type HandleCanceler interface {
+	CancelHandle(handleID string) (*Result, bool)
+}
+
+// EventReader is an optional capability for executors that can expose runtime
+// event history for a given handle identifier.
+type EventReader interface {
+	GetEvents(handleID string) ([]models.RuntimeEvent, bool)
+}
+
+// RuntimeIntrospector is an optional capability for executors that can expose
+// runtime-level metadata such as capabilities and resource info.
+type RuntimeIntrospector interface {
+	GetRuntimeInfo(ctx context.Context) (json.RawMessage, error)
+	GetRuntimeCapabilities(ctx context.Context) (json.RawMessage, error)
+	GetRuntimeResources(ctx context.Context) (json.RawMessage, error)
+	GetRuntimeConfig(ctx context.Context) (json.RawMessage, error)
+}
+
 type Tool struct {
 	Name        string            `json:"name"`
 	Category    string            `json:"category"`
@@ -125,4 +146,5 @@ func RegisterBuiltins() {
 	Register(NewOSExecutor())
 	Register(NewMCPExecutor(nil))
 	Register(NewCLISkillsExecutor(nil))
+	Register(NewRuntimeExecutorFromEnv())
 }

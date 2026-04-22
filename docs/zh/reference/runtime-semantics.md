@@ -263,6 +263,63 @@ accepted -> failed
 - `message`
 - `data`
 
+## 五点五、与 execgo-runtime 的映射约定（推荐实现）
+
+`execgo-runtime` 是 ExecGo 生态的数据面运行时，负责异步提交、调度、执行与持久化，并对外提供 HTTP API。
+
+为实现“可轮询/可取消/可追踪”的统一语义，推荐使用以下映射：
+
+### 1) 关键端点映射
+
+- 提交：`POST /api/v1/tasks`
+- 轮询：`GET /api/v1/tasks/{ref}`
+- 取消：`POST /api/v1/tasks/{ref}/kill`
+- 事件：`GET /api/v1/tasks/{ref}/events`
+- 能力/资源探测（可选）：
+  - `GET /api/v1/runtime/info`
+  - `GET /api/v1/runtime/capabilities`
+  - `GET /api/v1/runtime/resources`
+  - `GET /api/v1/runtime/config`
+
+其中 `{ref}` 的取值见下一节的句柄兼容策略。
+
+### 2) handle_id / task_id 兼容策略
+
+不同 runtime 可能会：
+
+- 用 `task_id` 作为查询/取消/事件的路径参数
+- 或用 `handle_id` 作为路径参数（`task_id` 仅做业务 ID）
+
+为兼容两种实现，推荐策略：
+
+- **ExecGo 内部一律用 `handle_id` 作为异步锚点**（用于调度器轮询与未来取消）；
+- 若 runtime 返回的 `handle_id != task_id`，ExecGo 侧应记住两者映射；
+- 当使用 `handle_id` 调用查询/取消/事件返回 `404` 时，自动 fallback 到 `task_id` 再试一次。
+
+### 3) 事件结构
+
+推荐 `GET /api/v1/tasks/{ref}/events` 返回数组：
+
+```json
+[
+  {
+    "type": "task_started",
+    "task_id": "task-1",
+    "handle_id": "handle-1",
+    "timestamp": "2026-04-21T00:00:00Z",
+    "message": "started",
+    "data": {}
+  }
+]
+```
+
+字段语义与本文的 `RuntimeEvent` 对齐。
+
+### 4) 错误结构
+
+推荐所有非 2xx 响应返回 `{ "error": { "code": "...", "message": "...", "details": ... } }`，
+ExecGo 侧应将其归一化为 `RuntimeError`（包括 `retryable/source/details` 的补充）。
+
 ## 六、当前结构到目标结构的映射建议
 
 当前已有字段：

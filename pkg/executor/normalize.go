@@ -8,7 +8,7 @@ func NormalizeTask(task *models.Task) {
 		return
 	}
 	switch task.Type {
-	case "mcp", "cli-skills", "os":
+	case "mcp", "cli-skills", "os", "runtime":
 		return
 	default:
 		if IsOSTool(task.Type) {
@@ -21,4 +21,3 @@ func NormalizeTask(task *models.Task) {
 		}
 	}
 }
-
