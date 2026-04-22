@@ -10,12 +10,14 @@ import (
 	"github.com/iammm0/execgo/pkg/models"
 )
 
+// MCPExecutor 管理异步 MCP 任务 handle 并委托扩展执行具体方法 / manages asynchronous MCP task handles and delegates method execution to an extension.
 type MCPExecutor struct {
 	ext     ExecutorExtension
 	mu      sync.RWMutex
 	handles map[string]*Result
 }
 
+// NewMCPExecutor 创建 MCP executor，并在未传扩展时使用默认回显实现 / creates an MCP executor and uses the default echo implementation when no extension is provided.
 func NewMCPExecutor(ext ExecutorExtension) *MCPExecutor {
 	if ext == nil {
 		ext = mcpDefaultExtension{}
@@ -29,6 +31,7 @@ func NewMCPExecutor(ext ExecutorExtension) *MCPExecutor {
 func (e *MCPExecutor) Name() string     { return "mcp" }
 func (e *MCPExecutor) Category() string { return "mcp" }
 
+// Execute 接收 MCP 任务并返回异步 handle，实际执行在后台完成 / accepts an MCP task and returns an asynchronous handle while execution continues in the background.
 func (e *MCPExecutor) Execute(ctx context.Context, task *models.Task) (*Result, error) {
 	if err := e.ext.BeforeExecute(ctx, task); err != nil {
 		return nil, err
@@ -98,6 +101,7 @@ func (e *MCPExecutor) Execute(ctx context.Context, task *models.Task) (*Result, 
 	return initial, nil
 }
 
+// ListTools 返回 MCP executor 暴露的工具清单 / returns the tools exposed by the MCP executor.
 func (e *MCPExecutor) ListTools(ctx context.Context) ([]Tool, error) {
 	_ = ctx
 	return []Tool{
@@ -110,12 +114,16 @@ func (e *MCPExecutor) ListTools(ctx context.Context) ([]Tool, error) {
 	}, nil
 }
 
+// HealthCheck 检查 MCP executor 是否可用 / checks whether the MCP executor is available.
 func (e *MCPExecutor) HealthCheck() error { return nil }
+
+// Shutdown 关闭 MCP executor 并释放资源 / shuts down the MCP executor and releases resources.
 func (e *MCPExecutor) Shutdown(ctx context.Context) error {
 	_ = ctx
 	return nil
 }
 
+// GetHandle 返回指定 handle 的任务结果副本 / returns a copy of the task result for the given handle.
 func (e *MCPExecutor) GetHandle(handleID string) (*Result, bool) {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
@@ -145,8 +153,10 @@ func (e *MCPExecutor) GetHandle(handleID string) (*Result, bool) {
 	return &cp, true
 }
 
+// mcpDefaultExtension 是没有外部 MCP 实现时使用的默认回显扩展 / is the default echo extension used when no external MCP implementation is provided.
 type mcpDefaultExtension struct{ NopExtension }
 
+// ExecuteMethod 回显 MCP 任务输入，便于本地 smoke 测试 / echoes MCP task input for local smoke testing.
 func (mcpDefaultExtension) ExecuteMethod(ctx context.Context, task *models.Task) (*Result, error) {
 	_ = ctx
 	payload := task.Input

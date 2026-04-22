@@ -17,7 +17,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// Server implements ExecGo gRPC methods by mapping them to the existing core HTTP semantics.
+// Server 通过映射现有核心 HTTP 语义实现 ExecGo gRPC 方法 / implements ExecGo gRPC methods by mapping to existing core HTTP semantics.
 type Server struct {
 	execgov1.UnimplementedExecGoServer
 
@@ -29,7 +29,7 @@ type Server struct {
 	startTime time.Time
 }
 
-// NewServer creates a gRPC server implementation.
+// NewServer 创建 gRPC server 实现 / creates a gRPC server implementation.
 func NewServer(st store.Store, sched *scheduler.Scheduler, metrics *observability.Metrics, logger *slog.Logger) *Server {
 	return &Server{
 		state:     st,
@@ -50,17 +50,17 @@ func taskToProto(t *models.Task) *execgov1.Task {
 		resultJSON = string(t.Result)
 	}
 	return &execgov1.Task{
-		Id:                 t.ID,
-		Type:               t.Type,
-		ParamsJson:        paramsJSON,
-		DependsOn:         t.DependsOn,
-		Retry:              int32(t.Retry),
-		TimeoutMs:         t.Timeout,
-		Status:             string(t.Status),
-		ResultJson:        resultJSON,
-		Error:              t.Error,
-		CreatedAtUnixMs:   t.CreatedAt.UnixMilli(),
-		UpdatedAtUnixMs:   t.UpdatedAt.UnixMilli(),
+		Id:              t.ID,
+		Type:            t.Type,
+		ParamsJson:      paramsJSON,
+		DependsOn:       t.DependsOn,
+		Retry:           int32(t.Retry),
+		TimeoutMs:       t.Timeout,
+		Status:          string(t.Status),
+		ResultJson:      resultJSON,
+		Error:           t.Error,
+		CreatedAtUnixMs: t.CreatedAt.UnixMilli(),
+		UpdatedAtUnixMs: t.UpdatedAt.UnixMilli(),
 	}
 }
 
@@ -77,7 +77,7 @@ func taskFromProto(t *execgov1.Task) *models.Task {
 		DependsOn: t.GetDependsOn(),
 		Retry:     int(t.GetRetry()),
 		Timeout:   t.GetTimeoutMs(),
-		// Status/CreatedAt/UpdatedAt are assigned by scheduler.Submit and persistence layer.
+		// Status/CreatedAt/UpdatedAt 由 scheduler.Submit 和持久化层赋值 / are assigned by scheduler.Submit and the persistence layer.
 		Status: models.StatusPending,
 	}
 }
@@ -97,7 +97,7 @@ func (s *Server) SubmitTasks(ctx context.Context, req *execgov1.TaskGraph) (*exe
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
-	// Validate executor types early (same behavior as HTTP layer).
+	// 提前校验 executor 类型，保持与 HTTP 层一致 / validates executor types early to match HTTP layer behavior.
 	for _, task := range graph.Tasks {
 		executor.NormalizeTask(task)
 		if _, err := executor.Get(task.Type); err != nil {
@@ -172,4 +172,3 @@ func (s *Server) Metrics(ctx context.Context, req *execgov1.MetricsRequest) (*ex
 		ByType:         s.metrics.Snapshot(),
 	}, nil
 }
-

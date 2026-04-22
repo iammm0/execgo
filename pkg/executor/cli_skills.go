@@ -11,10 +11,12 @@ import (
 	"github.com/iammm0/execgo/pkg/models"
 )
 
+// CLISkillsExecutor 执行本地 CLI skill 命令 / executes local CLI skill commands.
 type CLISkillsExecutor struct {
 	ext ExecutorExtension
 }
 
+// NewCLISkillsExecutor 创建 CLI skills executor，并在未传扩展时使用空扩展 / creates a CLI skills executor and uses a no-op extension when none is provided.
 func NewCLISkillsExecutor(ext ExecutorExtension) *CLISkillsExecutor {
 	if ext == nil {
 		ext = NopExtension{}
@@ -25,11 +27,13 @@ func NewCLISkillsExecutor(ext ExecutorExtension) *CLISkillsExecutor {
 func (e *CLISkillsExecutor) Name() string     { return "cli-skills" }
 func (e *CLISkillsExecutor) Category() string { return "cli-skills" }
 
+// CLISkillInput 描述要执行的本地命令及参数 / describes the local command and arguments to execute.
 type CLISkillInput struct {
 	Command string   `json:"command"`
 	Args    []string `json:"args,omitempty"`
 }
 
+// Execute 解析任务输入并通过本地子进程执行 CLI 命令 / parses task input and executes the CLI command as a local subprocess.
 func (e *CLISkillsExecutor) Execute(ctx context.Context, task *models.Task) (*Result, error) {
 	if err := e.ext.BeforeExecute(ctx, task); err != nil {
 		return nil, err
@@ -72,6 +76,7 @@ func (e *CLISkillsExecutor) Execute(ctx context.Context, task *models.Task) (*Re
 	return res, nil
 }
 
+// ListTools 返回 CLI skills executor 暴露的工具清单 / returns the tools exposed by the CLI skills executor.
 func (e *CLISkillsExecutor) ListTools(ctx context.Context) ([]Tool, error) {
 	_ = ctx
 	return []Tool{
@@ -84,7 +89,10 @@ func (e *CLISkillsExecutor) ListTools(ctx context.Context) ([]Tool, error) {
 	}, nil
 }
 
-func (e *CLISkillsExecutor) HealthCheck() error                 { return nil }
+// HealthCheck 检查 CLI skills executor 是否可用 / checks whether the CLI skills executor is available.
+func (e *CLISkillsExecutor) HealthCheck() error { return nil }
+
+// Shutdown 关闭 CLI skills executor 并释放资源 / shuts down the CLI skills executor and releases resources.
 func (e *CLISkillsExecutor) Shutdown(ctx context.Context) error { _ = ctx; return nil }
 
 func mustJSONMarshal(v any) json.RawMessage {

@@ -2,8 +2,8 @@ package models
 
 import "time"
 
-// RuntimeStatus describes the lifecycle of an executable task run.
-// It is finer-grained than TaskStatus and is intended for agent runtime semantics.
+// RuntimeStatus 描述单次可执行任务运行的生命周期 / describes the lifecycle of an executable task run.
+// 它比 TaskStatus 更细粒度，面向 agent runtime 语义 / it is finer-grained than TaskStatus for agent runtime semantics.
 type RuntimeStatus string
 
 const (
@@ -14,7 +14,7 @@ const (
 	RuntimeCancelled RuntimeStatus = "cancelled"
 )
 
-// IsTerminal reports whether the runtime state is terminal.
+// IsTerminal 判断 runtime 状态是否已经结束 / reports whether the runtime state is terminal.
 func (s RuntimeStatus) IsTerminal() bool {
 	switch s {
 	case RuntimeSuccess, RuntimeFailed, RuntimeCancelled:
@@ -24,7 +24,7 @@ func (s RuntimeStatus) IsTerminal() bool {
 	}
 }
 
-// ErrorCode identifies a stable machine-readable failure category.
+// ErrorCode 标识稳定、机器可读的失败分类 / identifies a stable machine-readable failure category.
 type ErrorCode string
 
 const (
@@ -44,7 +44,7 @@ const (
 	ErrorInternal        ErrorCode = "internal"
 )
 
-// RuntimeError is the normalized failure envelope returned by executors and APIs.
+// RuntimeError 是 executor 和 API 返回的标准失败信封 / is the normalized failure envelope returned by executors and APIs.
 type RuntimeError struct {
 	Code      ErrorCode `json:"code"`
 	Message   string    `json:"message"`
@@ -53,8 +53,8 @@ type RuntimeError struct {
 	Details   any       `json:"details,omitempty"`
 }
 
-// RuntimeResult is the normalized task run output envelope.
-// The executor-specific payload should live under Output or Details.
+// RuntimeResult 是任务运行结果的标准输出信封 / is the normalized task run output envelope.
+// executor 专属负载应放在 Output 或 Details 中 / executor-specific payloads should live under Output or Details.
 type RuntimeResult struct {
 	Status     RuntimeStatus `json:"status"`
 	HandleID   string        `json:"handle_id,omitempty"`
@@ -67,7 +67,7 @@ type RuntimeResult struct {
 	Error      *RuntimeError `json:"error,omitempty"`
 }
 
-// RuntimeEventType defines structured lifecycle events emitted by the runtime.
+// RuntimeEventType 定义 runtime 发出的结构化生命周期事件 / defines structured lifecycle events emitted by the runtime.
 type RuntimeEventType string
 
 const (
@@ -81,7 +81,7 @@ const (
 	RuntimeEventCancelled RuntimeEventType = "task_cancelled"
 )
 
-// RuntimeEvent is the normalized event model for execution lifecycle streaming or audit.
+// RuntimeEvent 是执行生命周期流式输出或审计使用的标准事件模型 / is the normalized event model for execution lifecycle streaming or audit.
 type RuntimeEvent struct {
 	Type      RuntimeEventType `json:"type"`
 	TaskID    string           `json:"task_id"`

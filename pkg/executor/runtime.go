@@ -17,10 +17,13 @@ import (
 )
 
 const (
-	RuntimeBaseURLEnv     = "EXECGO_RUNTIME_URL"
+	// RuntimeBaseURLEnv 指定 execgo-runtime 基础地址环境变量 / names the environment variable for the execgo-runtime base URL.
+	RuntimeBaseURLEnv = "EXECGO_RUNTIME_URL"
+	// DefaultRuntimeBaseURL 是本地 runtime 的默认地址 / is the default local runtime address.
 	DefaultRuntimeBaseURL = "http://127.0.0.1:8080"
 )
 
+// RuntimeExecutor 通过 execgo-runtime HTTP API 提交、轮询和取消任务 / submits, polls, and cancels tasks through the execgo-runtime HTTP API.
 type RuntimeExecutor struct {
 	baseURL string
 	client  *http.Client
@@ -59,6 +62,7 @@ type runtimeEventsEnvelope struct {
 	Events []models.RuntimeEvent `json:"events"`
 }
 
+// NewRuntimeExecutor 创建 runtime executor 并规范化基础地址与 HTTP client / creates a runtime executor and normalizes the base URL and HTTP client.
 func NewRuntimeExecutor(baseURL string, client *http.Client) *RuntimeExecutor {
 	baseURL = strings.TrimSpace(strings.TrimRight(baseURL, "/"))
 	if baseURL == "" {
@@ -68,12 +72,13 @@ func NewRuntimeExecutor(baseURL string, client *http.Client) *RuntimeExecutor {
 		client = &http.Client{Timeout: 15 * time.Second}
 	}
 	return &RuntimeExecutor{
-		baseURL:       baseURL,
-		client:        client,
-		handleToTask:  make(map[string]string),
+		baseURL:      baseURL,
+		client:       client,
+		handleToTask: make(map[string]string),
 	}
 }
 
+// NewRuntimeExecutorFromEnv 从环境变量创建 runtime executor / creates a runtime executor from environment variables.
 func NewRuntimeExecutorFromEnv() *RuntimeExecutor {
 	return NewRuntimeExecutor(os.Getenv(RuntimeBaseURLEnv), nil)
 }
@@ -81,6 +86,7 @@ func NewRuntimeExecutorFromEnv() *RuntimeExecutor {
 func (e *RuntimeExecutor) Name() string     { return "runtime" }
 func (e *RuntimeExecutor) Category() string { return "runtime" }
 
+// Execute 将 ExecGo 任务提交给外部 runtime，并返回可轮询的 handle / submits an ExecGo task to the external runtime and returns a pollable handle.
 func (e *RuntimeExecutor) Execute(ctx context.Context, task *models.Task) (*Result, error) {
 	payload, err := runtimePayload(task)
 	if err != nil {
@@ -158,6 +164,7 @@ func (e *RuntimeExecutor) Execute(ctx context.Context, task *models.Task) (*Resu
 	}, nil
 }
 
+// GetHandle 按 handle 查询 runtime 任务结果 / queries a runtime task result by handle.
 func (e *RuntimeExecutor) GetHandle(handleID string) (*Result, bool) {
 	handleID = strings.TrimSpace(handleID)
 	if handleID == "" {
@@ -168,14 +175,15 @@ func (e *RuntimeExecutor) GetHandle(handleID string) (*Result, bool) {
 		return res, true
 	}
 
-	// Backward/compat: some runtimes might expose polling endpoints keyed by task_id
-	// even if the submit response returns a different handle_id.
+	// 向后兼容：部分 runtime 可能按 task_id 暴露轮询端点 / Backward compatibility: some runtimes may expose polling endpoints keyed by task_id.
+	// 即使提交响应返回了不同的 handle_id，也尝试用 task_id 查询 / even if the submit response returns a different handle_id.
 	if taskID, ok := e.lookupTaskID(handleID); ok && taskID != "" && taskID != handleID {
 		return e.getHandleByRef(taskID)
 	}
 	return nil, false
 }
 
+// CancelHandle 按 handle 取消 runtime 任务 / cancels a runtime task by handle.
 func (e *RuntimeExecutor) CancelHandle(handleID string) (*Result, bool) {
 	handleID = strings.TrimSpace(handleID)
 	if handleID == "" {
@@ -191,6 +199,7 @@ func (e *RuntimeExecutor) CancelHandle(handleID string) (*Result, bool) {
 	return nil, false
 }
 
+// GetEvents 按 handle 查询 runtime 事件流 / queries runtime events by handle.
 func (e *RuntimeExecutor) GetEvents(handleID string) ([]models.RuntimeEvent, bool) {
 	handleID = strings.TrimSpace(handleID)
 	if handleID == "" {
@@ -283,12 +292,11 @@ func (e *RuntimeExecutor) getEventsByRef(ref string) ([]models.RuntimeEvent, boo
 		return nil, false
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		// We currently only expose a bool for GetEvents; the caller can re-fetch task
-		// status for structured error if needed.
+		// GetEvents 目前只暴露 bool；调用方需要结构化错误时可重新拉取任务状态 / GetEvents currently exposes only a bool; callers can re-fetch task status for structured errors.
 		return nil, true
 	}
 
-	// Tolerate both: `[ {...}, ... ]` and `{ "events": [ ... ] }`
+	// 兼容直接数组和信封对象两种响应：`[ {...}, ... ]` 与 `{ "events": [ ... ] }` / tolerates both direct arrays and envelope objects.
 	var direct []models.RuntimeEvent
 	if err := json.Unmarshal(body, &direct); err == nil {
 		return direct, true
@@ -347,7 +355,7 @@ func (e *RuntimeExecutor) cancelByRef(ref string) (*Result, bool) {
 		}, true
 	}
 
-	// execgo-runtime is expected to return a task-like object, but we tolerate empty body.
+	// execgo-runtime 预期返回类似任务的对象，但这里兼容空响应体 / execgo-runtime is expected to return a task-like object, but empty bodies are tolerated.
 	if len(body) == 0 {
 		return &Result{
 			TaskID:   ref,
@@ -377,7 +385,7 @@ func (e *RuntimeExecutor) cancelByRef(ref string) (*Result, bool) {
 		return res, true
 	}
 
-	// Fallback: treat it as cancelled if runtime returned 2xx but unknown body.
+	// 兜底：runtime 返回 2xx 但响应体未知时视为已取消 / fallback: treats unknown 2xx bodies as cancelled.
 	return &Result{
 		TaskID:   ref,
 		HandleID: ref,
@@ -386,6 +394,7 @@ func (e *RuntimeExecutor) cancelByRef(ref string) (*Result, bool) {
 	}, true
 }
 
+// ListTools 返回 runtime executor 暴露的工具清单 / returns the tools exposed by the runtime executor.
 func (e *RuntimeExecutor) ListTools(ctx context.Context) ([]Tool, error) {
 	_ = ctx
 	return []Tool{
@@ -398,22 +407,27 @@ func (e *RuntimeExecutor) ListTools(ctx context.Context) ([]Tool, error) {
 	}, nil
 }
 
+// GetRuntimeInfo 拉取 runtime 基础信息 / fetches runtime basic information.
 func (e *RuntimeExecutor) GetRuntimeInfo(ctx context.Context) (json.RawMessage, error) {
 	return e.getRuntimeJSON(ctx, "/api/v1/runtime/info")
 }
 
+// GetRuntimeCapabilities 拉取 runtime 能力快照 / fetches the runtime capability snapshot.
 func (e *RuntimeExecutor) GetRuntimeCapabilities(ctx context.Context) (json.RawMessage, error) {
 	return e.getRuntimeJSON(ctx, "/api/v1/runtime/capabilities")
 }
 
+// GetRuntimeResources 拉取 runtime 资源状态 / fetches runtime resource status.
 func (e *RuntimeExecutor) GetRuntimeResources(ctx context.Context) (json.RawMessage, error) {
 	return e.getRuntimeJSON(ctx, "/api/v1/runtime/resources")
 }
 
+// GetRuntimeConfig 拉取 runtime 配置快照 / fetches the runtime configuration snapshot.
 func (e *RuntimeExecutor) GetRuntimeConfig(ctx context.Context) (json.RawMessage, error) {
 	return e.getRuntimeJSON(ctx, "/api/v1/runtime/config")
 }
 
+// HealthCheck 检查 runtime 是否 ready / checks whether the runtime is ready.
 func (e *RuntimeExecutor) HealthCheck() error {
 	req, err := http.NewRequest(http.MethodGet, e.baseURL+"/readyz", nil)
 	if err != nil {
@@ -430,6 +444,7 @@ func (e *RuntimeExecutor) HealthCheck() error {
 	return nil
 }
 
+// Shutdown 释放 runtime executor 资源 / releases runtime executor resources.
 func (e *RuntimeExecutor) Shutdown(ctx context.Context) error {
 	_ = ctx
 	return nil
@@ -524,12 +539,12 @@ func decodeRuntimeAPIError(body []byte) *models.RuntimeError {
 	if err := json.Unmarshal(body, &env); err == nil && env.Error != nil {
 		return convertRuntimeAPIError(env.Error)
 	}
-	// Tolerate direct error object (without envelope).
+	// 兼容没有信封包装的直接错误对象 / tolerates direct error objects without an envelope.
 	var direct runtimeAPIError
 	if err := json.Unmarshal(body, &direct); err == nil && (direct.Code != "" || direct.Message != "") {
 		return convertRuntimeAPIError(&direct)
 	}
-	// Tolerate string error bodies.
+	// 兼容字符串形式的错误响应体 / tolerates string error bodies.
 	var msg string
 	if err := json.Unmarshal(body, &msg); err == nil && strings.TrimSpace(msg) != "" {
 		return &models.RuntimeError{
