@@ -1,3 +1,5 @@
+// Package models 定义 ExecGo 的核心数据结构 / core data structures for ExecGo.
+// Author: iammm0; Last edited: 2026-04-23
 package models
 
 import "time"
@@ -6,6 +8,7 @@ import "time"
 // 它比 TaskStatus 更细粒度，面向 agent runtime 语义 / it is finer-grained than TaskStatus for agent runtime semantics.
 type RuntimeStatus string
 
+// RuntimeStatus 常量集合 / RuntimeStatus values.
 const (
 	RuntimeAccepted  RuntimeStatus = "accepted"
 	RuntimeRunning   RuntimeStatus = "running"
@@ -27,6 +30,7 @@ func (s RuntimeStatus) IsTerminal() bool {
 // ErrorCode 标识稳定、机器可读的失败分类 / identifies a stable machine-readable failure category.
 type ErrorCode string
 
+// ErrorCode 常量集合 / ErrorCode values.
 const (
 	ErrorUnknown         ErrorCode = "unknown"
 	ErrorInvalidInput    ErrorCode = "invalid_input"
@@ -70,6 +74,7 @@ type RuntimeResult struct {
 // RuntimeEventType 定义 runtime 发出的结构化生命周期事件 / defines structured lifecycle events emitted by the runtime.
 type RuntimeEventType string
 
+// RuntimeEventType 常量集合 / RuntimeEventType values.
 const (
 	RuntimeEventSubmitted RuntimeEventType = "task_submitted"
 	RuntimeEventAccepted  RuntimeEventType = "task_accepted"

@@ -1,3 +1,5 @@
+// HTTP integration tests / HTTP 集成测试。
+// Author: iammm0; Last edited: 2026-04-23
 package integration_test
 
 import (
@@ -12,6 +14,7 @@ import (
 	"github.com/iammm0/execgo/tests/testutil"
 )
 
+// TestHTTPTaskFlow_SubmitThenQueryStatus verifies submit->poll flow / 验证提交后轮询查询流程。
 func TestHTTPTaskFlow_SubmitThenQueryStatus(t *testing.T) {
 	executor.RegisterBuiltins()
 	rt := testutil.NewRuntime(t, 4)
@@ -79,6 +82,7 @@ func TestHTTPTaskFlow_SubmitThenQueryStatus(t *testing.T) {
 	}
 }
 
+// TestMCPHTTPFlow_ListCallPoll verifies MCP list/call/poll via HTTP / 验证通过 HTTP 的 MCP list/call/poll 流程。
 func TestMCPHTTPFlow_ListCallPoll(t *testing.T) {
 	executor.RegisterBuiltins()
 	rt := testutil.NewRuntime(t, 2)

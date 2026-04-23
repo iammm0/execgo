@@ -1,3 +1,5 @@
+// gRPC server implementation for ExecGo / ExecGo 的 gRPC 服务实现。
+// Author: iammm0; Last edited: 2026-04-23
 package grpcserver
 
 import (

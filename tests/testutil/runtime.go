@@ -1,3 +1,5 @@
+// Test runtime helpers / 测试运行时辅助封装。
+// Author: iammm0; Last edited: 2026-04-23
 package testutil
 
 import (
@@ -24,6 +26,7 @@ type Runtime struct {
 	Logger    *slog.Logger
 }
 
+// NewRuntime 创建测试运行时（store+scheduler+metrics）/ creates a test runtime bundle (store+scheduler+metrics).
 func NewRuntime(t *testing.T, maxConcurrency int) *Runtime {
 	t.Helper()
 
@@ -45,6 +48,7 @@ func NewRuntime(t *testing.T, maxConcurrency int) *Runtime {
 	}
 }
 
+// NewHTTPServer 创建测试 HTTP 服务 / creates an httptest server for the HTTP API.
 func NewHTTPServer(t *testing.T, rt *Runtime) *httptest.Server {
 	t.Helper()
 	engine := httpserver.NewEngine(rt.Store, rt.Scheduler, rt.Metrics, rt.Logger)
@@ -53,6 +57,7 @@ func NewHTTPServer(t *testing.T, rt *Runtime) *httptest.Server {
 	return srv
 }
 
+// WaitTaskInStore 轮询等待任务到达终态 / polls the store until the task reaches a terminal status.
 func WaitTaskInStore(t *testing.T, st store.Store, taskID string, timeout time.Duration) *models.Task {
 	t.Helper()
 

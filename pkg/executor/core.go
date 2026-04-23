@@ -1,5 +1,6 @@
 // Package executor 定义执行器接口和全局注册表
 // defines the Executor interface and global registry.
+// Author: iammm0; Last edited: 2026-04-23
 package executor
 
 import (
@@ -29,26 +30,22 @@ type Executor interface {
 	Shutdown(ctx context.Context) error
 }
 
-// HandleReader is an optional capability for executors that expose asynchronous
-// task handles and allow polling for terminal runtime state.
+// HandleReader 是可选能力：支持异步 handle，并允许轮询任务终态 / optional capability: exposes async handles and allows polling terminal state.
 type HandleReader interface {
 	GetHandle(handleID string) (*Result, bool)
 }
 
-// HandleCanceler is an optional capability for executors that can cancel
-// asynchronous tasks by handle identifier.
+// HandleCanceler 是可选能力：支持按 handle 取消异步任务 / optional capability: cancels async tasks by handle identifier.
 type HandleCanceler interface {
 	CancelHandle(handleID string) (*Result, bool)
 }
 
-// EventReader is an optional capability for executors that can expose runtime
-// event history for a given handle identifier.
+// EventReader 是可选能力：支持按 handle 获取运行时事件历史 / optional capability: exposes runtime event history for a handle.
 type EventReader interface {
 	GetEvents(handleID string) ([]models.RuntimeEvent, bool)
 }
 
-// RuntimeIntrospector is an optional capability for executors that can expose
-// runtime-level metadata such as capabilities and resource info.
+// RuntimeIntrospector 是可选能力：暴露 runtime 级元信息（capabilities/resources/config 等）/ optional capability: exposes runtime-level metadata.
 type RuntimeIntrospector interface {
 	GetRuntimeInfo(ctx context.Context) (json.RawMessage, error)
 	GetRuntimeCapabilities(ctx context.Context) (json.RawMessage, error)
@@ -56,6 +53,7 @@ type RuntimeIntrospector interface {
 	GetRuntimeConfig(ctx context.Context) (json.RawMessage, error)
 }
 
+// Tool 描述可发现的工具元信息 / describes discoverable tool metadata.
 type Tool struct {
 	Name        string            `json:"name"`
 	Category    string            `json:"category"`
@@ -64,12 +62,14 @@ type Tool struct {
 	Metadata    map[string]string `json:"metadata,omitempty"`
 }
 
+// ProgressEvent 描述运行过程中的进度事件 / describes a progress event during execution.
 type ProgressEvent struct {
 	Timestamp time.Time      `json:"timestamp"`
 	Message   string         `json:"message,omitempty"`
 	Data      map[string]any `json:"data,omitempty"`
 }
 
+// Result 是 Executor 的标准输出结构 / is the normalized output of an Executor.
 type Result struct {
 	TaskID     string               `json:"task_id,omitempty"`
 	Status     models.RuntimeStatus `json:"status"`

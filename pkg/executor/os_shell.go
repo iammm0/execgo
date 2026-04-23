@@ -1,3 +1,5 @@
+// Shell tool executor (whitelist + runner selection) / Shell 工具执行器（白名单 + runner 选择）。
+// Author: iammm0; Last edited: 2026-04-23
 package executor
 
 import (
@@ -18,15 +20,15 @@ const (
 	ShellPolicyEnv = "EXECGO_SHELL_POLICY"
 	// ShellPolicyOpen 跳过命令白名单 / bypasses command whitelist.
 	ShellPolicyOpen = "open"
-	// ShellRunnerAuto automatically picks runner by OS.
+	// ShellRunnerAuto 按操作系统自动选择脚本执行器 / automatically picks runner by OS.
 	ShellRunnerAuto = "auto"
-	// ShellRunnerDirect executes command/args directly.
+	// ShellRunnerDirect 直接执行 command/args / executes command/args directly.
 	ShellRunnerDirect = "direct"
-	// ShellRunnerPowerShell executes script through PowerShell.
+	// ShellRunnerPowerShell 通过 PowerShell 执行脚本 / executes script through PowerShell.
 	ShellRunnerPowerShell = "powershell"
-	// ShellRunnerCMD executes script through cmd.exe.
+	// ShellRunnerCMD 通过 cmd.exe 执行脚本 / executes script through cmd.exe.
 	ShellRunnerCMD = "cmd"
-	// ShellRunnerSh executes script through /bin/sh.
+	// ShellRunnerSh 通过 /bin/sh 执行脚本 / executes script through /bin/sh.
 	ShellRunnerSh = "sh"
 )
 
@@ -37,7 +39,7 @@ var allowedCommands = map[string]bool{
 	"curl": true, "wget": true, "ping": true, "dig": true,
 	"grep": true, "awk": true, "sed": true, "head": true, "tail": true,
 	"wc": true, "sort": true, "uniq": true, "find": true,
-	"dir": true, "where": true, "type": true, // Windows 常用命令
+	"dir": true, "where": true, "type": true, // Windows 常用命令 / common Windows commands
 }
 
 // ShellParams Shell 执行器参数 / Shell executor parameters.
@@ -52,6 +54,7 @@ type ShellParams struct {
 // ShellExecutor 执行白名单内的 Shell 命令 / executes whitelisted shell commands.
 type ShellExecutor struct{}
 
+// Type 返回工具类型名 / returns the tool type name.
 func (e *ShellExecutor) Type() string { return "shell" }
 
 func isOpenShellPolicy() bool {
@@ -78,6 +81,7 @@ func resolveScriptRunner(runner string) (string, []string, string, error) {
 	}
 }
 
+// Execute 执行 shell 命令或脚本 / executes a shell command or script.
 func (e *ShellExecutor) Execute(ctx context.Context, task *models.Task) (json.RawMessage, error) {
 	var p ShellParams
 	if err := json.Unmarshal(task.Params, &p); err != nil {

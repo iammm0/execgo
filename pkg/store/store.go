@@ -1,4 +1,5 @@
 // Package store 定义任务状态存储抽象 / task state storage abstraction.
+// Author: iammm0; Last edited: 2026-04-23
 package store
 
 import (

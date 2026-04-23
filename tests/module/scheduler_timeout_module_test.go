@@ -1,3 +1,5 @@
+// Scheduler timeout module tests / 调度器超时模块测试。
+// Author: iammm0; Last edited: 2026-04-23
 package module_test
 
 import (
@@ -15,20 +17,31 @@ type timeoutExecutor struct {
 	taskType string
 }
 
-func (e *timeoutExecutor) Name() string     { return e.taskType }
+// Name 返回执行器注册名 / returns the executor registry name.
+func (e *timeoutExecutor) Name() string { return e.taskType }
+
+// Category 返回执行器分类 / returns the executor category.
 func (e *timeoutExecutor) Category() string { return "test" }
+
+// ListTools 返回空工具清单 / returns an empty tool list.
 func (e *timeoutExecutor) ListTools(ctx context.Context) ([]executor.Tool, error) {
 	return nil, nil
 }
-func (e *timeoutExecutor) HealthCheck() error                 { return nil }
+
+// HealthCheck 总是健康 / always healthy.
+func (e *timeoutExecutor) HealthCheck() error { return nil }
+
+// Shutdown 无需释放资源 / no-op shutdown.
 func (e *timeoutExecutor) Shutdown(ctx context.Context) error { return nil }
 
+// Execute 等待 ctx 超时或取消 / waits for ctx to timeout or cancel.
 func (e *timeoutExecutor) Execute(ctx context.Context, task *models.Task) (*executor.Result, error) {
 	_ = task
 	<-ctx.Done()
 	return nil, ctx.Err()
 }
 
+// TestScheduler_TimeoutProducesStructuredRuntimeError verifies timeout error normalization / 验证超时错误归一化。
 func TestScheduler_TimeoutProducesStructuredRuntimeError(t *testing.T) {
 	rt := testutil.NewRuntime(t, 1)
 	taskType := fmt.Sprintf("timeout-%d", time.Now().UnixNano())

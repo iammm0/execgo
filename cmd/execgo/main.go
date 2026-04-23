@@ -3,6 +3,7 @@
 // 为 AI Agent 提供任务提交、DAG 调度、并发执行和可观测性的 HTTP 服务。
 // An HTTP service providing task submission, DAG scheduling, concurrent execution,
 // and observability for AI agents.
+// Author: iammm0; Last edited: 2026-04-23
 package main
 
 import (

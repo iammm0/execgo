@@ -1,3 +1,5 @@
+// HTTP request tool executor / HTTP 请求工具执行器。
+// Author: iammm0; Last edited: 2026-04-23
 package executor
 
 import (
@@ -22,8 +24,10 @@ type HTTPParams struct {
 // HTTPExecutor 通过 HTTP 请求执行任务 / executes tasks via HTTP requests.
 type HTTPExecutor struct{}
 
+// Type 返回工具类型名 / returns the tool type name.
 func (e *HTTPExecutor) Type() string { return "http" }
 
+// Execute 执行 HTTP 请求任务 / executes an HTTP request task.
 func (e *HTTPExecutor) Execute(ctx context.Context, task *models.Task) (json.RawMessage, error) {
 	var p HTTPParams
 	if err := json.Unmarshal(task.Params, &p); err != nil {

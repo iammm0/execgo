@@ -1,3 +1,5 @@
+// Task graph validation unit tests / 任务图校验单元测试。
+// Author: iammm0; Last edited: 2026-04-23
 package unit_test
 
 import (
@@ -6,6 +8,7 @@ import (
 	"github.com/iammm0/execgo/pkg/models"
 )
 
+// TestTaskGraphValidate verifies TaskGraph.Validate behavior / 验证 TaskGraph.Validate 行为。
 func TestTaskGraphValidate(t *testing.T) {
 	tests := []struct {
 		name    string

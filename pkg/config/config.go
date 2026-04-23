@@ -1,4 +1,5 @@
 // Package config 管理 ExecGo 的配置与可插拔配置源 / ExecGo configuration and pluggable config sources.
+// Author: iammm0; Last edited: 2026-04-23
 package config
 
 import (
@@ -9,16 +10,16 @@ import (
 
 // 逻辑键（与 Env 名对应，供 Provider 实现使用）/ logical keys for Provider implementations.
 const (
-	KeyHTTPAddr         = "http_addr"
-	KeyGRPCAddr         = "grpc_addr"
-	KeyDataDir          = "data_dir"
-	KeyMaxConcurrency   = "max_concurrency"
-	KeyShutdownTimeout  = "shutdown_timeout"
-	EnvHTTPAddr         = "EXECGO_ADDR"
-	EnvGRPCAddr         = "EXECGO_GRPC_ADDR"
-	EnvDataDir          = "EXECGO_DATA_DIR"
-	EnvMaxConcurrency   = "EXECGO_MAX_CONCURRENCY"
-	EnvShutdownTimeout  = "EXECGO_SHUTDOWN_TIMEOUT"
+	KeyHTTPAddr        = "http_addr"
+	KeyGRPCAddr        = "grpc_addr"
+	KeyDataDir         = "data_dir"
+	KeyMaxConcurrency  = "max_concurrency"
+	KeyShutdownTimeout = "shutdown_timeout"
+	EnvHTTPAddr        = "EXECGO_ADDR"
+	EnvGRPCAddr        = "EXECGO_GRPC_ADDR"
+	EnvDataDir         = "EXECGO_DATA_DIR"
+	EnvMaxConcurrency  = "EXECGO_MAX_CONCURRENCY"
+	EnvShutdownTimeout = "EXECGO_SHUTDOWN_TIMEOUT"
 )
 
 // Config 全局配置 / global configuration.
@@ -53,11 +54,11 @@ func Load(p Provider) *Config {
 
 // FlagEnvProvider 使用 flag 与环境变量（flag 优先于注册时的 env 默认值）/ flags with env-derived defaults.
 type FlagEnvProvider struct {
-	httpAddr         string
-	grpcAddr         string
-	dataDir          string
-	maxConcurrency   int
-	shutdownTimeout  int
+	httpAddr        string
+	grpcAddr        string
+	dataDir         string
+	maxConcurrency  int
+	shutdownTimeout int
 }
 
 // NewFlagEnvProvider 注册 flag、执行 Parse，并返回可作为 Provider 使用的值 / registers flags, parses, returns Provider values.

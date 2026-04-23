@@ -1,3 +1,5 @@
+// TCP probe tool executor / TCP 连通性探测工具执行器。
+// Author: iammm0; Last edited: 2026-04-23
 package executor
 
 import (
@@ -24,8 +26,10 @@ type TCPParams struct {
 // TCPExecutor 检测 TCP 端口是否可达 / checks TCP connectivity to host:port.
 type TCPExecutor struct{}
 
+// Type 返回工具类型名 / returns the tool type name.
 func (e *TCPExecutor) Type() string { return "tcp" }
 
+// Execute 执行 TCP 探测任务 / executes a TCP dial probe task.
 func (e *TCPExecutor) Execute(ctx context.Context, task *models.Task) (json.RawMessage, error) {
 	var p TCPParams
 	if err := json.Unmarshal(task.Params, &p); err != nil {

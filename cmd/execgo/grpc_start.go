@@ -1,5 +1,7 @@
 //go:build grpc
 
+// gRPC server bootstrap (build tag: grpc) / gRPC 服务启动（构建标签：grpc）。
+// Author: iammm0; Last edited: 2026-04-23
 package main
 
 import (
@@ -42,4 +44,3 @@ func startGRPCServer(addr string, st store.Store, sched *scheduler.Scheduler, me
 		grpcSrv.GracefulStop()
 	}, nil
 }
-

@@ -1,3 +1,5 @@
+// Config loading unit tests / 配置加载单元测试。
+// Author: iammm0; Last edited: 2026-04-23
 package unit_test
 
 import (
@@ -6,6 +8,7 @@ import (
 	"github.com/iammm0/execgo/pkg/config"
 )
 
+// TestConfigLoad_Defaults verifies default config values / 验证配置默认值。
 func TestConfigLoad_Defaults(t *testing.T) {
 	cfg := config.Load(config.MapProvider{})
 
@@ -26,6 +29,7 @@ func TestConfigLoad_Defaults(t *testing.T) {
 	}
 }
 
+// TestConfigLoad_MapProviderOverrides verifies MapProvider overrides / 验证 MapProvider 覆盖默认值。
 func TestConfigLoad_MapProviderOverrides(t *testing.T) {
 	cfg := config.Load(config.MapProvider{
 		Strings: map[string]string{

@@ -1,5 +1,6 @@
 // Package observability 提供结构化日志、请求追踪和指标收集
 // provides structured logging, request tracing, and metrics collection.
+// Author: iammm0; Last edited: 2026-04-23
 package observability
 
 import (

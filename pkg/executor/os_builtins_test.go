@@ -1,3 +1,5 @@
+// Tests for OS builtin tool executors / OS 内置工具执行器测试。
+// Author: iammm0; Last edited: 2026-04-23
 package executor
 
 import (
@@ -13,6 +15,7 @@ import (
 	"github.com/iammm0/execgo/pkg/models"
 )
 
+// TestNoopExecutor_Execute verifies basic noop behavior / 验证 noop 的基本行为。
 func TestNoopExecutor_Execute(t *testing.T) {
 	e := &NoopExecutor{}
 	ctx := context.Background()
@@ -33,6 +36,7 @@ func TestNoopExecutor_Execute(t *testing.T) {
 	}
 }
 
+// TestNoopExecutor_Execute_emptyParams verifies noop with empty params / 验证 noop 在空参数下的行为。
 func TestNoopExecutor_Execute_emptyParams(t *testing.T) {
 	e := &NoopExecutor{}
 	raw, err := e.Execute(context.Background(), &models.Task{})
@@ -46,6 +50,7 @@ func TestNoopExecutor_Execute_emptyParams(t *testing.T) {
 	}
 }
 
+// TestSleepExecutor_Execute_zero verifies zero-duration sleep / 验证 0ms sleep。
 func TestSleepExecutor_Execute_zero(t *testing.T) {
 	e := &SleepExecutor{}
 	task := &models.Task{Params: json.RawMessage(`{"duration_ms":0}`)}
@@ -60,6 +65,7 @@ func TestSleepExecutor_Execute_zero(t *testing.T) {
 	}
 }
 
+// TestSleepExecutor_Execute_short verifies short sleep duration / 验证短 sleep 时长。
 func TestSleepExecutor_Execute_short(t *testing.T) {
 	e := &SleepExecutor{}
 	task := &models.Task{Params: json.RawMessage(`{"duration_ms":1}`)}
@@ -73,6 +79,7 @@ func TestSleepExecutor_Execute_short(t *testing.T) {
 	}
 }
 
+// TestSleepExecutor_Execute_cancel verifies context cancellation / 验证 context 取消。
 func TestSleepExecutor_Execute_cancel(t *testing.T) {
 	e := &SleepExecutor{}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -84,6 +91,7 @@ func TestSleepExecutor_Execute_cancel(t *testing.T) {
 	}
 }
 
+// TestSleepExecutor_Execute_exceedsMax verifies max duration guard / 验证最大时长限制。
 func TestSleepExecutor_Execute_exceedsMax(t *testing.T) {
 	e := &SleepExecutor{}
 	ms := SleepMaxDuration.Milliseconds() + 1
@@ -94,6 +102,7 @@ func TestSleepExecutor_Execute_exceedsMax(t *testing.T) {
 	}
 }
 
+// TestShellExecutor_DirectSuccess verifies direct runner execution / 验证 direct runner 执行。
 func TestShellExecutor_DirectSuccess(t *testing.T) {
 	e := &ShellExecutor{}
 	task := &models.Task{
@@ -115,6 +124,7 @@ func TestShellExecutor_DirectSuccess(t *testing.T) {
 	}
 }
 
+// TestShellExecutor_ScriptAutoRunner verifies auto script runner selection / 验证 auto runner 选择。
 func TestShellExecutor_ScriptAutoRunner(t *testing.T) {
 	e := &ShellExecutor{}
 	task := &models.Task{
@@ -140,6 +150,7 @@ func TestShellExecutor_ScriptAutoRunner(t *testing.T) {
 	}
 }
 
+// TestShellExecutor_InvalidRunner verifies invalid runner handling / 验证非法 runner 处理。
 func TestShellExecutor_InvalidRunner(t *testing.T) {
 	e := &ShellExecutor{}
 	task := &models.Task{
@@ -151,6 +162,7 @@ func TestShellExecutor_InvalidRunner(t *testing.T) {
 	}
 }
 
+// TestShellExecutor_PolicyDifference verifies whitelist policy toggle / 验证白名单策略开关。
 func TestShellExecutor_PolicyDifference(t *testing.T) {
 	e := &ShellExecutor{}
 	old := os.Getenv(ShellPolicyEnv)

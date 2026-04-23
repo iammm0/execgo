@@ -1,5 +1,7 @@
 //go:build !grpc
 
+// gRPC stub (build tag: !grpc) / gRPC 桩实现（构建标签：!grpc）。
+// Author: iammm0; Last edited: 2026-04-23
 package main
 
 import (
@@ -19,4 +21,3 @@ func startGRPCServer(addr string, st store.Store, sched *scheduler.Scheduler, me
 	_ = logger
 	return nil, nil
 }
-

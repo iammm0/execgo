@@ -1,3 +1,5 @@
+// No-op tool executor / 空操作工具执行器。
+// Author: iammm0; Last edited: 2026-04-23
 package executor
 
 import (
@@ -16,8 +18,10 @@ type NoopParams struct {
 // NoopExecutor 占位与测试，无外部 IO / placeholder for DAGs and tests; no external I/O.
 type NoopExecutor struct{}
 
+// Type 返回工具类型名 / returns the tool type name.
 func (e *NoopExecutor) Type() string { return "noop" }
 
+// Execute 执行 noop 任务并回显 message / executes a noop task and echoes the message.
 func (e *NoopExecutor) Execute(ctx context.Context, task *models.Task) (json.RawMessage, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err

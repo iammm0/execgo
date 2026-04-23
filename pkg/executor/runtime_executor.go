@@ -1,3 +1,5 @@
+// Runtime executor over execgo-runtime HTTP API / 基于 execgo-runtime HTTP API 的执行器。
+// Author: iammm0; Last edited: 2026-04-23
 package executor
 
 import (
@@ -83,7 +85,10 @@ func NewRuntimeExecutorFromEnv() *RuntimeExecutor {
 	return NewRuntimeExecutor(os.Getenv(RuntimeBaseURLEnv), nil)
 }
 
-func (e *RuntimeExecutor) Name() string     { return "runtime" }
+// Name 返回执行器注册名 / returns the executor registry name.
+func (e *RuntimeExecutor) Name() string { return "runtime" }
+
+// Category 返回执行器分类 / returns the executor category.
 func (e *RuntimeExecutor) Category() string { return "runtime" }
 
 // Execute 将 ExecGo 任务提交给外部 runtime，并返回可轮询的 handle / submits an ExecGo task to the external runtime and returns a pollable handle.

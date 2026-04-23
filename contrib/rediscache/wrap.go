@@ -1,4 +1,5 @@
 // Package rediscache 提供基于 Redis 的 store.Store 读穿缓存装饰器 / Redis read-through cache decorator for store.Store.
+// Author: iammm0; Last edited: 2026-04-23
 package rediscache
 
 import (

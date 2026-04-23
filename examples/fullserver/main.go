@@ -1,4 +1,5 @@
 // Fullserver 演示在独立模块中组合 jsonfile / SQLite 与 Redis 缓存 / demo: compose jsonfile, SQLite, and Redis outside the core module.
+// Author: iammm0; Last edited: 2026-04-23
 package main
 
 import (

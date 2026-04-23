@@ -1,3 +1,5 @@
+// Sleep tool executor / 延时工具执行器。
+// Author: iammm0; Last edited: 2026-04-23
 package executor
 
 import (
@@ -20,8 +22,10 @@ type SleepParams struct {
 // SleepExecutor 按毫秒延时，可被 context 取消 / delays for a duration; cancellable via context.
 type SleepExecutor struct{}
 
+// Type 返回工具类型名 / returns the tool type name.
 func (e *SleepExecutor) Type() string { return "sleep" }
 
+// Execute 执行 sleep 延时任务 / executes a sleep (delay) task.
 func (e *SleepExecutor) Execute(ctx context.Context, task *models.Task) (json.RawMessage, error) {
 	var p SleepParams
 	if err := json.Unmarshal(task.Params, &p); err != nil {

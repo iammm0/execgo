@@ -1,4 +1,5 @@
 // Package httpserver 提供可组合中间件的 HTTP API（类似 Gin 的 Use 链）/ HTTP API with composable middleware.
+// Author: iammm0; Last edited: 2026-04-23
 package httpserver
 
 import (

@@ -1,3 +1,5 @@
+// HTTP error path integration tests / HTTP 错误路径集成测试。
+// Author: iammm0; Last edited: 2026-04-23
 package integration_test
 
 import (
@@ -12,6 +14,7 @@ import (
 	"github.com/iammm0/execgo/tests/testutil"
 )
 
+// TestHTTPTaskFlow_ErrorBranches verifies HTTP error branches / 验证 HTTP 错误分支。
 func TestHTTPTaskFlow_ErrorBranches(t *testing.T) {
 	executor.RegisterBuiltins()
 	rt := testutil.NewRuntime(t, 2)
@@ -104,6 +107,7 @@ func TestHTTPTaskFlow_ErrorBranches(t *testing.T) {
 	}
 }
 
+// TestHealthEndpoint_ReturnsReleasedVersion verifies health version reporting / 验证 health 返回版本号。
 func TestHealthEndpoint_ReturnsReleasedVersion(t *testing.T) {
 	executor.RegisterBuiltins()
 	rt := testutil.NewRuntime(t, 1)

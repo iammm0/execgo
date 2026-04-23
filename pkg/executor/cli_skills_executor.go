@@ -1,3 +1,5 @@
+// CLI skills executor (local subprocess) / CLI skills 执行器（本地子进程）。
+// Author: iammm0; Last edited: 2026-04-23
 package executor
 
 import (
@@ -24,7 +26,10 @@ func NewCLISkillsExecutor(ext ExecutorExtension) *CLISkillsExecutor {
 	return &CLISkillsExecutor{ext: ext}
 }
 
-func (e *CLISkillsExecutor) Name() string     { return "cli-skills" }
+// Name 返回执行器注册名 / returns the executor registry name.
+func (e *CLISkillsExecutor) Name() string { return "cli-skills" }
+
+// Category 返回执行器分类 / returns the executor category.
 func (e *CLISkillsExecutor) Category() string { return "cli-skills" }
 
 // CLISkillInput 描述要执行的本地命令及参数 / describes the local command and arguments to execute.

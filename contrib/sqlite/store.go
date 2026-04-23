@@ -1,4 +1,5 @@
 // Package sqlite 提供基于 SQLite 的 store.Store 实现（独立子模块）/ SQLite-backed store.Store in a separate module.
+// Author: iammm0; Last edited: 2026-04-23
 package sqlite
 
 import (

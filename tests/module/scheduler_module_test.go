@@ -1,3 +1,5 @@
+// Scheduler module tests / 调度器模块测试。
+// Author: iammm0; Last edited: 2026-04-23
 package module_test
 
 import (
@@ -20,9 +22,13 @@ type flakyExecutor struct {
 	attempts  atomic.Int32
 }
 
-func (e *flakyExecutor) Name() string     { return e.taskType }
+// Name 返回执行器注册名 / returns the executor registry name.
+func (e *flakyExecutor) Name() string { return e.taskType }
+
+// Category 返回执行器分类 / returns the executor category.
 func (e *flakyExecutor) Category() string { return "test" }
 
+// Execute 按计划失败若干次后成功 / fails a few times as planned, then succeeds.
 func (e *flakyExecutor) Execute(ctx context.Context, task *models.Task) (*executor.Result, error) {
 	_ = task
 	n := e.attempts.Add(1)
@@ -31,23 +37,39 @@ func (e *flakyExecutor) Execute(ctx context.Context, task *models.Task) (*execut
 	}
 	return &executor.Result{Status: "success", Output: json.RawMessage(`{"ok":true}`)}, nil
 }
+
+// ListTools 返回空工具清单 / returns an empty tool list.
 func (e *flakyExecutor) ListTools(ctx context.Context) ([]executor.Tool, error) { return nil, nil }
-func (e *flakyExecutor) HealthCheck() error                                     { return nil }
-func (e *flakyExecutor) Shutdown(ctx context.Context) error                     { return nil }
+
+// HealthCheck 总是健康 / always healthy.
+func (e *flakyExecutor) HealthCheck() error { return nil }
+
+// Shutdown 无需释放资源 / no-op shutdown.
+func (e *flakyExecutor) Shutdown(ctx context.Context) error { return nil }
 
 type failExecutor struct{ taskType string }
 
-func (e *failExecutor) Name() string     { return e.taskType }
+// Name 返回执行器注册名 / returns the executor registry name.
+func (e *failExecutor) Name() string { return e.taskType }
+
+// Category 返回执行器分类 / returns the executor category.
 func (e *failExecutor) Category() string { return "test" }
 
+// Execute 总是失败 / always fails.
 func (e *failExecutor) Execute(ctx context.Context, task *models.Task) (*executor.Result, error) {
 	_ = ctx
 	_ = task
 	return &executor.Result{Status: "failed"}, fmt.Errorf("always fail")
 }
+
+// ListTools 返回空工具清单 / returns an empty tool list.
 func (e *failExecutor) ListTools(ctx context.Context) ([]executor.Tool, error) { return nil, nil }
-func (e *failExecutor) HealthCheck() error                                     { return nil }
-func (e *failExecutor) Shutdown(ctx context.Context) error                     { return nil }
+
+// HealthCheck 总是健康 / always healthy.
+func (e *failExecutor) HealthCheck() error { return nil }
+
+// Shutdown 无需释放资源 / no-op shutdown.
+func (e *failExecutor) Shutdown(ctx context.Context) error { return nil }
 
 type asyncHandleExecutor struct {
 	taskType string
@@ -55,9 +77,13 @@ type asyncHandleExecutor struct {
 	handles  map[string]*executor.Result
 }
 
-func (e *asyncHandleExecutor) Name() string     { return e.taskType }
+// Name 返回执行器注册名 / returns the executor registry name.
+func (e *asyncHandleExecutor) Name() string { return e.taskType }
+
+// Category 返回执行器分类 / returns the executor category.
 func (e *asyncHandleExecutor) Category() string { return "test" }
 
+// Execute 返回非终态结果并异步完成 / returns a non-terminal result and completes asynchronously.
 func (e *asyncHandleExecutor) Execute(ctx context.Context, task *models.Task) (*executor.Result, error) {
 	handleID := "handle-" + task.ID
 	startedAt := time.Now()
@@ -90,6 +116,7 @@ func (e *asyncHandleExecutor) Execute(ctx context.Context, task *models.Task) (*
 	return initial, nil
 }
 
+// GetHandle 按 handle 轮询结果 / polls the handle result.
 func (e *asyncHandleExecutor) GetHandle(handleID string) (*executor.Result, bool) {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
@@ -101,12 +128,18 @@ func (e *asyncHandleExecutor) GetHandle(handleID string) (*executor.Result, bool
 	return &cp, true
 }
 
+// ListTools 返回空工具清单 / returns an empty tool list.
 func (e *asyncHandleExecutor) ListTools(ctx context.Context) ([]executor.Tool, error) {
 	return nil, nil
 }
-func (e *asyncHandleExecutor) HealthCheck() error                 { return nil }
+
+// HealthCheck 总是健康 / always healthy.
+func (e *asyncHandleExecutor) HealthCheck() error { return nil }
+
+// Shutdown 无需释放资源 / no-op shutdown.
 func (e *asyncHandleExecutor) Shutdown(ctx context.Context) error { return nil }
 
+// TestScheduler_RetryThenSuccess verifies retry then success / 验证重试后成功。
 func TestScheduler_RetryThenSuccess(t *testing.T) {
 	rt := testutil.NewRuntime(t, 2)
 
@@ -141,6 +174,7 @@ func TestScheduler_RetryThenSuccess(t *testing.T) {
 	}
 }
 
+// TestScheduler_FailurePropagatesSkip verifies downstream skip on failure / 验证失败向下游传播 skip。
 func TestScheduler_FailurePropagatesSkip(t *testing.T) {
 	rt := testutil.NewRuntime(t, 2)
 	executor.RegisterBuiltins()
@@ -186,6 +220,7 @@ func TestScheduler_FailurePropagatesSkip(t *testing.T) {
 	}
 }
 
+// TestScheduler_AsyncHandleBlocksDependentsUntilTerminal verifies async handle behavior / 验证异步 handle 阻塞下游直到终态。
 func TestScheduler_AsyncHandleBlocksDependentsUntilTerminal(t *testing.T) {
 	rt := testutil.NewRuntime(t, 2)
 	executor.RegisterBuiltins()

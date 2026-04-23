@@ -1,5 +1,6 @@
 // Package scheduler 实现基于 DAG 的任务调度器
 // implements a DAG-based task scheduler.
+// Author: iammm0; Last edited: 2026-04-23
 package scheduler
 
 import (
@@ -488,6 +489,7 @@ type canceledError struct {
 	message string
 }
 
+// Error 实现 error 接口 / implements the error interface.
 func (e canceledError) Error() string {
 	if e.message != "" {
 		return e.message

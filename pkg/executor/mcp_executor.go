@@ -1,3 +1,5 @@
+// MCP executor with async handle management / 带异步 handle 管理的 MCP 执行器。
+// Author: iammm0; Last edited: 2026-04-23
 package executor
 
 import (
@@ -28,7 +30,10 @@ func NewMCPExecutor(ext ExecutorExtension) *MCPExecutor {
 	}
 }
 
-func (e *MCPExecutor) Name() string     { return "mcp" }
+// Name 返回执行器注册名 / returns the executor registry name.
+func (e *MCPExecutor) Name() string { return "mcp" }
+
+// Category 返回执行器分类 / returns the executor category.
 func (e *MCPExecutor) Category() string { return "mcp" }
 
 // Execute 接收 MCP 任务并返回异步 handle，实际执行在后台完成 / accepts an MCP task and returns an asynchronous handle while execution continues in the background.

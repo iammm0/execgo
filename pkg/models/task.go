@@ -1,4 +1,5 @@
 // Package models 定义 ExecGo 的核心数据结构 / core data structures for ExecGo.
+// Author: iammm0; Last edited: 2026-04-23
 package models
 
 import (
@@ -10,6 +11,7 @@ import (
 // TaskStatus 任务状态枚举 / task status enum.
 type TaskStatus string
 
+// TaskStatus 常量集合 / TaskStatus values.
 const (
 	StatusPending TaskStatus = "pending"
 	StatusRunning TaskStatus = "running"

@@ -1,3 +1,5 @@
+// DNS lookup tool executor / DNS 查询工具执行器。
+// Author: iammm0; Last edited: 2026-04-23
 package executor
 
 import (
@@ -19,8 +21,10 @@ type DNSParams struct {
 // DNSExecutor 使用系统解析器做 DNS 查询 / DNS lookups via system resolver.
 type DNSExecutor struct{}
 
+// Type 返回工具类型名 / returns the tool type name.
 func (e *DNSExecutor) Type() string { return "dns" }
 
+// Execute 执行 DNS 查询任务 / executes a DNS lookup task.
 func (e *DNSExecutor) Execute(ctx context.Context, task *models.Task) (json.RawMessage, error) {
 	var p DNSParams
 	if err := json.Unmarshal(task.Params, &p); err != nil {

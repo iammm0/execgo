@@ -1,3 +1,5 @@
+// File tool executor (read/write/append/delete/stat) / 文件工具执行器（读/写/追加/删除/元信息）。
+// Author: iammm0; Last edited: 2026-04-23
 package executor
 
 import (
@@ -12,7 +14,7 @@ import (
 
 // FileParams 文件执行器参数 / File executor parameters.
 type FileParams struct {
-	Action  string `json:"action"` // read, write, append, delete, stat
+	Action  string `json:"action"` // read, write, append, delete, stat（读/写/追加/删除/元信息）/ supported actions: read/write/append/delete/stat
 	Path    string `json:"path"`
 	Content string `json:"content,omitempty"`
 }
@@ -20,8 +22,10 @@ type FileParams struct {
 // FileExecutor 执行文件系统操作 / executes file system operations.
 type FileExecutor struct{}
 
+// Type 返回工具类型名 / returns the tool type name.
 func (e *FileExecutor) Type() string { return "file" }
 
+// Execute 执行文件系统任务 / executes a filesystem task.
 func (e *FileExecutor) Execute(ctx context.Context, task *models.Task) (json.RawMessage, error) {
 	var p FileParams
 	if err := json.Unmarshal(task.Params, &p); err != nil {

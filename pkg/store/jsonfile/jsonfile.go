@@ -1,4 +1,5 @@
 // Package jsonfile 提供内存任务表 + JSON 文件持久化 / in-memory tasks with JSON file persistence.
+// Author: iammm0; Last edited: 2026-04-23
 package jsonfile
 
 import (

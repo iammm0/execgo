@@ -1,3 +1,5 @@
+// JSON file store persistence module tests / JSON 文件存储持久化模块测试。
+// Author: iammm0; Last edited: 2026-04-23
 package module_test
 
 import (
@@ -11,6 +13,7 @@ import (
 	"github.com/iammm0/execgo/pkg/store/jsonfile"
 )
 
+// TestJSONFileManager_PersistAndRecover verifies persist and recovery / 验证持久化与恢复流程。
 func TestJSONFileManager_PersistAndRecover(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	dataDir := t.TempDir()

@@ -1,3 +1,5 @@
+// Tests for RuntimeExecutor / RuntimeExecutor 测试。
+// Author: iammm0; Last edited: 2026-04-23
 package executor
 
 import (
@@ -10,6 +12,7 @@ import (
 	"github.com/iammm0/execgo/pkg/models"
 )
 
+// TestRuntimeExecutorExecuteInjectsTaskIDAndReturnsAcceptedHandle verifies submit payload injection and handle semantics / 验证提交时 task_id 注入与 handle 语义。
 func TestRuntimeExecutorExecuteInjectsTaskIDAndReturnsAcceptedHandle(t *testing.T) {
 	var got map[string]any
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -47,6 +50,7 @@ func TestRuntimeExecutorExecuteInjectsTaskIDAndReturnsAcceptedHandle(t *testing.
 	}
 }
 
+// TestRuntimeExecutorGetHandleMapsStructuredRuntimeError verifies structured error mapping / 验证结构化错误映射。
 func TestRuntimeExecutorGetHandleMapsStructuredRuntimeError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/api/v1/tasks/task-1" {
@@ -84,6 +88,7 @@ func TestRuntimeExecutorGetHandleMapsStructuredRuntimeError(t *testing.T) {
 	}
 }
 
+// TestRuntimeExecutorGetHandleFallsBackToTaskIDWhenHandleNotFound verifies handle->task_id fallback / 验证 handle 查询失败时回退 task_id。
 func TestRuntimeExecutorGetHandleFallsBackToTaskIDWhenHandleNotFound(t *testing.T) {
 	var (
 		seenSubmit bool
@@ -139,6 +144,7 @@ func TestRuntimeExecutorGetHandleFallsBackToTaskIDWhenHandleNotFound(t *testing.
 	}
 }
 
+// TestRuntimeExecutorCancelHandleFallsBackToTaskIDWhenHandleNotFound verifies cancel fallback / 验证取消操作的 task_id 回退。
 func TestRuntimeExecutorCancelHandleFallsBackToTaskIDWhenHandleNotFound(t *testing.T) {
 	var (
 		seenSubmit bool
@@ -194,6 +200,7 @@ func TestRuntimeExecutorCancelHandleFallsBackToTaskIDWhenHandleNotFound(t *testi
 	}
 }
 
+// TestRuntimeExecutorGetEventsFallsBackToTaskIDWhenHandleNotFound verifies events fallback / 验证事件查询的 task_id 回退。
 func TestRuntimeExecutorGetEventsFallsBackToTaskIDWhenHandleNotFound(t *testing.T) {
 	var (
 		seenSubmit  bool
@@ -219,11 +226,11 @@ func TestRuntimeExecutorGetEventsFallsBackToTaskIDWhenHandleNotFound(t *testing.
 			_ = json.NewEncoder(w).Encode([]map[string]any{
 				{
 					"type":      "task_started",
-					"task_id":    "task-1",
-					"handle_id":  "handle-1",
-					"timestamp":  "2026-04-21T00:00:00Z",
-					"message":    "started",
-					"data":       map[string]any{"k": "v"},
+					"task_id":   "task-1",
+					"handle_id": "handle-1",
+					"timestamp": "2026-04-21T00:00:00Z",
+					"message":   "started",
+					"data":      map[string]any{"k": "v"},
 				},
 			})
 			return
@@ -258,6 +265,7 @@ func TestRuntimeExecutorGetEventsFallsBackToTaskIDWhenHandleNotFound(t *testing.
 	}
 }
 
+// TestRuntimeExecutorIntrospectionEndpoints verifies runtime introspection endpoints / 验证 runtime 自省端点。
 func TestRuntimeExecutorIntrospectionEndpoints(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
