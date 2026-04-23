@@ -30,7 +30,7 @@ func TestRuntimeExecutorExecuteInjectsTaskIDAndReturnsAcceptedHandle(t *testing.
 	}))
 	defer srv.Close()
 
-	exec := NewRuntimeExecutor(srv.URL, srv.Client())
+	exec := NewRuntimeExecutor(srv.URL, srv.Client(), "", "")
 	res, err := exec.Execute(context.Background(), &models.Task{
 		ID:    "runtime-task",
 		Type:  "runtime",
@@ -69,7 +69,7 @@ func TestRuntimeExecutorGetHandleMapsStructuredRuntimeError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	exec := NewRuntimeExecutor(srv.URL, srv.Client())
+	exec := NewRuntimeExecutor(srv.URL, srv.Client(), "", "")
 	res, ok := exec.GetHandle("task-1")
 	if !ok {
 		t.Fatal("expected handle lookup to succeed")
@@ -123,7 +123,7 @@ func TestRuntimeExecutorGetHandleFallsBackToTaskIDWhenHandleNotFound(t *testing.
 	}))
 	defer srv.Close()
 
-	exec := NewRuntimeExecutor(srv.URL, srv.Client())
+	exec := NewRuntimeExecutor(srv.URL, srv.Client(), "", "")
 	_, err := exec.Execute(context.Background(), &models.Task{
 		ID:    "client-task",
 		Type:  "runtime",
@@ -179,7 +179,7 @@ func TestRuntimeExecutorCancelHandleFallsBackToTaskIDWhenHandleNotFound(t *testi
 	}))
 	defer srv.Close()
 
-	exec := NewRuntimeExecutor(srv.URL, srv.Client())
+	exec := NewRuntimeExecutor(srv.URL, srv.Client(), "", "")
 	_, err := exec.Execute(context.Background(), &models.Task{
 		ID:    "client-task",
 		Type:  "runtime",
@@ -240,7 +240,7 @@ func TestRuntimeExecutorGetEventsFallsBackToTaskIDWhenHandleNotFound(t *testing.
 	}))
 	defer srv.Close()
 
-	exec := NewRuntimeExecutor(srv.URL, srv.Client())
+	exec := NewRuntimeExecutor(srv.URL, srv.Client(), "", "")
 	_, err := exec.Execute(context.Background(), &models.Task{
 		ID:    "client-task",
 		Type:  "runtime",
@@ -283,7 +283,7 @@ func TestRuntimeExecutorIntrospectionEndpoints(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	exec := NewRuntimeExecutor(srv.URL, srv.Client())
+	exec := NewRuntimeExecutor(srv.URL, srv.Client(), "", "")
 	ctx := context.Background()
 
 	if raw, err := exec.GetRuntimeInfo(ctx); err != nil || len(raw) == 0 {
@@ -297,5 +297,187 @@ func TestRuntimeExecutorIntrospectionEndpoints(t *testing.T) {
 	}
 	if raw, err := exec.GetRuntimeConfig(ctx); err != nil || len(raw) == 0 {
 		t.Fatalf("GetRuntimeConfig err=%v raw=%s", err, string(raw))
+	}
+}
+
+// TestRuntimeExecutorSubmitInjectsControlContextTenantOwner verifies that tenant/owner are injected into control_context /
+// 验证 tenant/owner 被注入到 control_context。
+func TestRuntimeExecutorSubmitInjectsControlContextTenantOwner(t *testing.T) {
+	var got map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/tasks" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"task_id":   "t1",
+			"handle_id": "t1",
+			"status":    "accepted",
+		})
+	}))
+	defer srv.Close()
+
+	exec := NewRuntimeExecutor(srv.URL, srv.Client(), "acme", "alice")
+	_, err := exec.Execute(context.Background(), &models.Task{
+		ID:    "t1",
+		Type:  "runtime",
+		Input: json.RawMessage(`{"execution":{"kind":"command","program":"echo","args":["hi"]}}`),
+	})
+	if err != nil {
+		t.Fatalf("execute returned error: %v", err)
+	}
+	cc, ok := got["control_context"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected control_context in payload, got %#v", got["control_context"])
+	}
+	if cc["tenant"] != "acme" {
+		t.Fatalf("expected tenant=acme, got %#v", cc["tenant"])
+	}
+	if cc["owner"] != "alice" {
+		t.Fatalf("expected owner=alice, got %#v", cc["owner"])
+	}
+}
+
+// TestRuntimeExecutorSubmitPreservesExistingControlContext verifies that task-supplied control_context values are not overwritten /
+// 验证任务已有的 control_context 字段不会被覆盖。
+func TestRuntimeExecutorSubmitPreservesExistingControlContext(t *testing.T) {
+	var got map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/tasks" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"task_id":   "t2",
+			"handle_id": "t2",
+			"status":    "accepted",
+		})
+	}))
+	defer srv.Close()
+
+	// task already supplies control_context.owner; executor tenant/owner should only fill missing fields.
+	// 任务已提供 control_context.owner；executor 仅补全缺失字段。
+	exec := NewRuntimeExecutor(srv.URL, srv.Client(), "acme", "executor-owner")
+	_, err := exec.Execute(context.Background(), &models.Task{
+		ID:   "t2",
+		Type: "runtime",
+		Input: json.RawMessage(`{
+			"execution":{"kind":"command","program":"echo","args":["hi"]},
+			"control_context":{"owner":"task-owner","extra":"x"}
+		}`),
+	})
+	if err != nil {
+		t.Fatalf("execute returned error: %v", err)
+	}
+	cc, ok := got["control_context"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected control_context in payload, got %#v", got["control_context"])
+	}
+	// task-supplied owner must not be overwritten.
+	if cc["owner"] != "task-owner" {
+		t.Fatalf("expected owner=task-owner (task-supplied), got %#v", cc["owner"])
+	}
+	// tenant was absent in task payload; executor should have filled it.
+	if cc["tenant"] != "acme" {
+		t.Fatalf("expected tenant=acme (executor-injected), got %#v", cc["tenant"])
+	}
+	// extra field from task payload must be preserved.
+	if cc["extra"] != "x" {
+		t.Fatalf("expected extra=x preserved, got %#v", cc["extra"])
+	}
+}
+
+// TestRuntimeExecutorKillCarriesOwnerHeader verifies that the kill request includes X-Execgo-Owner when owner is set /
+// 验证取消请求在设置 owner 时携带 X-Execgo-Owner 头。
+func TestRuntimeExecutorKillCarriesOwnerHeader(t *testing.T) {
+	var killHeader string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/tasks":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"task_id":   "t3",
+				"handle_id": "t3",
+				"status":    "accepted",
+			})
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/tasks/t3/kill":
+			killHeader = r.Header.Get("X-Execgo-Owner")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"task_id":   "t3",
+				"handle_id": "t3",
+				"status":    "cancelled",
+			})
+		default:
+			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+
+	exec := NewRuntimeExecutor(srv.URL, srv.Client(), "", "alice")
+	_, err := exec.Execute(context.Background(), &models.Task{
+		ID:    "t3",
+		Type:  "runtime",
+		Input: json.RawMessage(`{"execution":{"kind":"command","program":"sleep","args":["1"]}}`),
+	})
+	if err != nil {
+		t.Fatalf("execute returned error: %v", err)
+	}
+	res, ok := exec.CancelHandle("t3")
+	if !ok {
+		t.Fatal("expected cancel to succeed")
+	}
+	if res.Status != models.RuntimeCancelled {
+		t.Fatalf("expected status=cancelled, got %s", res.Status)
+	}
+	if killHeader != "alice" {
+		t.Fatalf("expected X-Execgo-Owner=alice on kill request, got %q", killHeader)
+	}
+}
+
+// TestRuntimeExecutorKillOmitsOwnerHeaderWhenUnset verifies that no X-Execgo-Owner header is sent when owner is empty /
+// 验证 owner 为空时取消请求不携带 X-Execgo-Owner 头。
+func TestRuntimeExecutorKillOmitsOwnerHeaderWhenUnset(t *testing.T) {
+	var killHeader string
+	var killHeaderPresent bool
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/tasks":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"task_id":   "t4",
+				"handle_id": "t4",
+				"status":    "accepted",
+			})
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/tasks/t4/kill":
+			_, killHeaderPresent = r.Header["X-Execgo-Owner"]
+			killHeader = r.Header.Get("X-Execgo-Owner")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"task_id":   "t4",
+				"handle_id": "t4",
+				"status":    "cancelled",
+			})
+		default:
+			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+
+	exec := NewRuntimeExecutor(srv.URL, srv.Client(), "", "")
+	_, err := exec.Execute(context.Background(), &models.Task{
+		ID:    "t4",
+		Type:  "runtime",
+		Input: json.RawMessage(`{"execution":{"kind":"command","program":"sleep","args":["1"]}}`),
+	})
+	if err != nil {
+		t.Fatalf("execute returned error: %v", err)
+	}
+	_, ok := exec.CancelHandle("t4")
+	if !ok {
+		t.Fatal("expected cancel to succeed")
+	}
+	if killHeaderPresent {
+		t.Fatalf("expected no X-Execgo-Owner header, but got %q", killHeader)
 	}
 }

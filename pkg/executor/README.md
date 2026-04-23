@@ -71,3 +71,16 @@ English:
 - `os_builtins_test.go`: OS builtin tool tests
 - `runtime_executor_test.go`: runtime executor tests
 
+## 5) RuntimeExecutor 环境变量（Environment Variables）
+
+`RuntimeExecutor` 支持以下环境变量，由 `NewRuntimeExecutorFromEnv` 读取：
+
+| 变量 / Variable | 说明（中）| Description (EN) |
+|---|---|---|
+| `EXECGO_RUNTIME_URL` | execgo-runtime HTTP 基础地址（默认 `http://127.0.0.1:8080`） | Base URL for the execgo-runtime HTTP API (default `http://127.0.0.1:8080`) |
+| `EXECGO_RUNTIME_TENANT` | 租户标识；非空时注入提交 payload 的 `control_context.tenant`（不覆盖任务已提供的值） | Tenant identifier; when non-empty it is injected into `control_context.tenant` of submit payloads without overwriting a task-supplied value |
+| `EXECGO_RUNTIME_OWNER` | 所有者标识；非空时注入 `control_context.owner`，且 kill 请求会携带 `X-Execgo-Owner` 头 | Owner identifier; when non-empty it is injected into `control_context.owner` and kill requests carry the `X-Execgo-Owner` header |
+
+`NewRuntimeExecutor(baseURL, client, tenant, owner)` 也接受显式的 `tenant`/`owner` 参数，测试时可直接传入而无需设置环境变量。  
+`NewRuntimeExecutor(baseURL, client, tenant, owner)` also accepts explicit `tenant`/`owner` parameters so tests can pass values directly without setting environment variables.
+

@@ -23,12 +23,18 @@ const (
 	RuntimeBaseURLEnv = "EXECGO_RUNTIME_URL"
 	// DefaultRuntimeBaseURL 是本地 runtime 的默认地址 / is the default local runtime address.
 	DefaultRuntimeBaseURL = "http://127.0.0.1:8080"
+	// RuntimeTenantEnv 指定租户标识环境变量 / names the environment variable for the tenant identifier.
+	RuntimeTenantEnv = "EXECGO_RUNTIME_TENANT"
+	// RuntimeOwnerEnv 指定所有者标识环境变量 / names the environment variable for the owner identifier.
+	RuntimeOwnerEnv = "EXECGO_RUNTIME_OWNER"
 )
 
 // RuntimeExecutor 通过 execgo-runtime HTTP API 提交、轮询和取消任务 / submits, polls, and cancels tasks through the execgo-runtime HTTP API.
 type RuntimeExecutor struct {
 	baseURL string
 	client  *http.Client
+	tenant  string
+	owner   string
 
 	mu           sync.RWMutex
 	handleToTask map[string]string
@@ -65,7 +71,8 @@ type runtimeEventsEnvelope struct {
 }
 
 // NewRuntimeExecutor 创建 runtime executor 并规范化基础地址与 HTTP client / creates a runtime executor and normalizes the base URL and HTTP client.
-func NewRuntimeExecutor(baseURL string, client *http.Client) *RuntimeExecutor {
+// tenant 和 owner 可以为空字符串；非空时会被注入提交 payload 的 control_context 中 / may be empty; when non-empty they are injected into the submit payload's control_context.
+func NewRuntimeExecutor(baseURL string, client *http.Client, tenant, owner string) *RuntimeExecutor {
 	baseURL = strings.TrimSpace(strings.TrimRight(baseURL, "/"))
 	if baseURL == "" {
 		baseURL = DefaultRuntimeBaseURL
@@ -76,13 +83,20 @@ func NewRuntimeExecutor(baseURL string, client *http.Client) *RuntimeExecutor {
 	return &RuntimeExecutor{
 		baseURL:      baseURL,
 		client:       client,
+		tenant:       strings.TrimSpace(tenant),
+		owner:        strings.TrimSpace(owner),
 		handleToTask: make(map[string]string),
 	}
 }
 
 // NewRuntimeExecutorFromEnv 从环境变量创建 runtime executor / creates a runtime executor from environment variables.
 func NewRuntimeExecutorFromEnv() *RuntimeExecutor {
-	return NewRuntimeExecutor(os.Getenv(RuntimeBaseURLEnv), nil)
+	return NewRuntimeExecutor(
+		os.Getenv(RuntimeBaseURLEnv),
+		nil,
+		os.Getenv(RuntimeTenantEnv),
+		os.Getenv(RuntimeOwnerEnv),
+	)
 }
 
 // Name 返回执行器注册名 / returns the executor registry name.
@@ -93,7 +107,7 @@ func (e *RuntimeExecutor) Category() string { return "runtime" }
 
 // Execute 将 ExecGo 任务提交给外部 runtime，并返回可轮询的 handle / submits an ExecGo task to the external runtime and returns a pollable handle.
 func (e *RuntimeExecutor) Execute(ctx context.Context, task *models.Task) (*Result, error) {
-	payload, err := runtimePayload(task)
+	payload, err := e.runtimePayload(task)
 	if err != nil {
 		return &Result{
 			TaskID: task.ID,
@@ -318,6 +332,10 @@ func (e *RuntimeExecutor) cancelByRef(ref string) (*Result, bool) {
 	if err != nil {
 		return nil, false
 	}
+	// owner が設定されている場合はヘッダを付与 / inject X-Execgo-Owner when owner is configured.
+	if e.owner != "" {
+		req.Header.Set("X-Execgo-Owner", e.owner)
+	}
 	resp, err := e.client.Do(req)
 	if err != nil {
 		return &Result{
@@ -492,7 +510,9 @@ func (e *RuntimeExecutor) getRuntimeJSON(ctx context.Context, path string) (json
 	return cloneJSON(body), nil
 }
 
-func runtimePayload(task *models.Task) ([]byte, error) {
+// runtimePayload 将任务输入序列化为提交 payload，并将 tenant/owner 合并到 control_context（不覆盖任务已有的值）/
+// serializes task input into the submit payload, merging tenant/owner into control_context without overwriting task-supplied values.
+func (e *RuntimeExecutor) runtimePayload(task *models.Task) ([]byte, error) {
 	raw := task.Input
 	if len(raw) == 0 {
 		raw = task.Params
@@ -507,6 +527,29 @@ func runtimePayload(task *models.Task) ([]byte, error) {
 		if _, ok := payload["task_id"]; !ok {
 			payload["task_id"] = task.ID
 		}
+	}
+	// 将 tenant/owner 合并到 control_context，仅填充缺失字段 / merge tenant/owner into control_context, only filling missing fields.
+	if e.tenant != "" || e.owner != "" {
+		var cc map[string]any
+		if existing, ok := payload["control_context"]; ok {
+			if m, ok := existing.(map[string]any); ok {
+				cc = m
+			}
+		}
+		if cc == nil {
+			cc = make(map[string]any)
+		}
+		if e.tenant != "" {
+			if _, ok := cc["tenant"]; !ok {
+				cc["tenant"] = e.tenant
+			}
+		}
+		if e.owner != "" {
+			if _, ok := cc["owner"]; !ok {
+				cc["owner"] = e.owner
+			}
+		}
+		payload["control_context"] = cc
 	}
 	return json.Marshal(payload)
 }
