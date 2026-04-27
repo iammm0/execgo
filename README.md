@@ -52,6 +52,9 @@ ExecGo 更适合被理解为一个面向 AI Agent 的执行内核（execution ke
 │ OS       │ MCP      │ CLI+Skill│ ... (extensible)   │
 │ Category │ Category │ Category │                    │
 ├──────────┴──────────┴──────────┴────────────────────┤
+│ Optional: Runtime Executor (HTTP)                   │
+│  submit/poll/cancel → execgo-runtime (/api/v1/tasks) │
+├─────────────────────────────────────────────────────┤
 │              Store (store.Store)                    │
 │   jsonfile (default) │ sqlite │ + Redis (contrib)  │
 ├─────────────────────────────────────────────────────┤
@@ -59,6 +62,16 @@ ExecGo 更适合被理解为一个面向 AI Agent 的执行内核（execution ke
 │    slog/JSON │ traceID │ /metrics                   │
 └─────────────────────────────────────────────────────┘
 ```
+
+### ExecGo 与 execgo-runtime 的关系 | ExecGo vs execgo-runtime
+
+- ExecGo 是**控制面/编排面**：接收 `TaskGraph`，做 DAG 调度、幂等/重试/超时语义、状态存储与可观测性，并把任务分发给不同 executor。
+- `execgo-runtime` 是**数据面/运行时执行器**（独立项目）：提供进程级执行、资源限制与（Linux-only）sandbox 能力，并持久化运行结果。  
+  ExecGo 通过内置 `runtime` executor 以 HTTP 调用 `execgo-runtime` 的 `/api/v1/tasks` 来提交/轮询/取消 `type=runtime` 的任务；不需要 runtime 的场景可以完全不部署它。
+
+更详细的边界与推荐用法见：
+- 中文：[`docs/zh/overview/execgo-and-runtime.md`](docs/zh/overview/execgo-and-runtime.md)
+- English: [`docs/en/overview/execgo-and-runtime.md`](docs/en/overview/execgo-and-runtime.md)
 
 ---
 

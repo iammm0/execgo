@@ -12,6 +12,7 @@
 
 ### 0) 项目定位与路线
 - [Agent-First 执行内核路线图](./agent-kernel-roadmap.md)
+- [ExecGo 与 execgo-runtime 的关系](./overview/execgo-and-runtime.md)
 
 ### 1) 上层编排层如何采用 ExecGo
 - [Orchestrator：上层如何映射 DAG -> TaskGraph](./orchestrator/README.md)

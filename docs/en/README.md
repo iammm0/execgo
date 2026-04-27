@@ -10,6 +10,9 @@ If you already read the root `README.md` quick start, continue from the sections
 
 ## Navigation
 
+### 0) Positioning
+- [ExecGo and execgo-runtime](./overview/execgo-and-runtime.md)
+
 ### 1) How an orchestration layer adopts ExecGo
 - [Orchestrator：DAG -> TaskGraph mapping guide](./orchestrator/README.md)
 
