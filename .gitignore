@@ -5,3 +5,5 @@ data/*.json
 .idea/
 .qoder/
 .qcoder/
+.DS_Store
+**/.DS_Store

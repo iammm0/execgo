@@ -22,24 +22,25 @@ const (
 
 // Task 是 AI 与执行引擎之间的核心契约 / core contract between AI and execution engine.
 type Task struct {
-	ID        string          `json:"id"`
-	Type      string          `json:"type"`
-	Params    json.RawMessage `json:"params,omitempty"`
-	ToolName  string          `json:"tool_name,omitempty"`
-	Input     json.RawMessage `json:"input,omitempty"`
-	Category  string          `json:"execution_category,omitempty"` // mcp | cli-skills | os
-	DependsOn []string        `json:"depends_on,omitempty"`
-	Retry     int             `json:"retry,omitempty"`
-	Timeout   int64           `json:"timeout,omitempty"` // 毫秒 / milliseconds
-	Status    TaskStatus      `json:"status"`
-	RunStatus string          `json:"run_status,omitempty"` // accepted | running | success | failed | cancelled
-	HandleID  string          `json:"handle_id,omitempty"`
-	Progress  json.RawMessage `json:"progress,omitempty"`
-	Result    json.RawMessage `json:"result,omitempty"`
-	Runtime   *RuntimeResult  `json:"runtime,omitempty"` // 规范化运行时结果 / normalized runtime envelope
-	Error     string          `json:"error,omitempty"`
-	CreatedAt time.Time       `json:"created_at"`
-	UpdatedAt time.Time       `json:"updated_at"`
+	ID          string            `json:"id"`
+	Type        string            `json:"type"`
+	Params      json.RawMessage   `json:"params,omitempty"`
+	ToolName    string            `json:"tool_name,omitempty"`
+	Input       json.RawMessage   `json:"input,omitempty"`
+	Category    string            `json:"execution_category,omitempty"` // mcp | cli-skills | os
+	DependsOn   []string          `json:"depends_on,omitempty"`
+	Retry       int               `json:"retry,omitempty"`
+	Timeout     int64             `json:"timeout,omitempty"` // 毫秒 / milliseconds
+	Annotations map[string]string `json:"annotations,omitempty"`
+	Status      TaskStatus        `json:"status"`
+	RunStatus   string            `json:"run_status,omitempty"` // accepted | running | success | failed | cancelled
+	HandleID    string            `json:"handle_id,omitempty"`
+	Progress    json.RawMessage   `json:"progress,omitempty"`
+	Result      json.RawMessage   `json:"result,omitempty"`
+	Runtime     *RuntimeResult    `json:"runtime,omitempty"` // 规范化运行时结果 / normalized runtime envelope
+	Error       string            `json:"error,omitempty"`
+	CreatedAt   time.Time         `json:"created_at"`
+	UpdatedAt   time.Time         `json:"updated_at"`
 }
 
 // TaskGraph 是一次提交的任务 DAG / a submitted task DAG.

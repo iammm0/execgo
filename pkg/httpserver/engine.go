@@ -3,12 +3,15 @@
 package httpserver
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
 	"time"
 
+	"github.com/iammm0/execgo/pkg/adapter"
 	"github.com/iammm0/execgo/pkg/executor"
 	"github.com/iammm0/execgo/pkg/models"
 	"github.com/iammm0/execgo/pkg/observability"
@@ -26,6 +29,7 @@ type Engine struct {
 	scheduler *scheduler.Scheduler
 	metrics   *observability.Metrics
 	logger    *slog.Logger
+	adapter   *adapter.AdapterKernel
 	startTime time.Time
 	mw        []Middleware
 	trace     bool
@@ -38,6 +42,7 @@ func NewEngine(st store.Store, sched *scheduler.Scheduler, metrics *observabilit
 		scheduler: sched,
 		metrics:   metrics,
 		logger:    logger,
+		adapter:   adapter.NewAdapterKernel(),
 		startTime: time.Now(),
 		trace:     true,
 	}
@@ -58,6 +63,10 @@ func (e *Engine) DisableTrace() *Engine {
 func (e *Engine) routesMux() *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /tasks", e.handleSubmitTasks)
+	mux.HandleFunc("GET /adapters/capabilities", e.handleAdapterCapabilities)
+	mux.HandleFunc("GET /adapters/tools", e.handleAdapterTools)
+	mux.HandleFunc("POST /adapters/translate", e.handleAdapterTranslate)
+	mux.HandleFunc("POST /adapters/actions", e.handleAdapterActions)
 	mux.HandleFunc("GET /mcp/tools", e.handleMCPListTools)
 	mux.HandleFunc("POST /mcp/call", e.handleMCPCallTool)
 	mux.HandleFunc("GET /mcp/tasks/{id}", e.handleMCPGetTask)
@@ -103,35 +112,95 @@ func (e *Engine) handleSubmitTasks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := graph.Validate(); err != nil {
-		logger.Warn("task graph validation failed", "error", err)
+	submit, err := e.validateAndSubmitGraph(ctx, &graph)
+	if err != nil {
+		logger.Warn("task graph submission rejected", "error", err)
 		writeJSON(w, http.StatusBadRequest, models.ErrorResponse{Error: err.Error()})
 		return
+	}
+
+	logger.Info("task graph submitted", "task_count", submit.Accepted)
+	writeJSON(w, http.StatusAccepted, submit)
+}
+
+func (e *Engine) validateAndSubmitGraph(ctx context.Context, graph *models.TaskGraph) (models.SubmitResponse, error) {
+	_ = ctx
+	if err := graph.Validate(); err != nil {
+		return models.SubmitResponse{}, err
 	}
 
 	for _, task := range graph.Tasks {
 		executor.NormalizeTask(task)
 		if _, err := executor.Get(task.Type); err != nil {
-			logger.Warn("unknown task type", "type", task.Type)
-			writeJSON(w, http.StatusBadRequest, models.ErrorResponse{
-				Error: "unknown task type: " + task.Type + " (available: " + strings.Join(executor.RegisteredTypes(), ", ") + ")",
-			})
-			return
+			return models.SubmitResponse{}, fmt.Errorf("unknown task type: %s (available: %s)", task.Type, strings.Join(executor.RegisteredTypes(), ", "))
 		}
 	}
 
-	e.scheduler.Submit(&graph)
-	logger.Info("task graph submitted", "task_count", len(graph.Tasks))
+	e.scheduler.Submit(graph)
 
 	ids := make([]string, len(graph.Tasks))
 	for i, t := range graph.Tasks {
 		ids[i] = t.ID
 	}
-
-	writeJSON(w, http.StatusAccepted, models.SubmitResponse{
+	return models.SubmitResponse{
 		Accepted: len(graph.Tasks),
 		TaskIDs:  ids,
-	})
+	}, nil
+}
+
+func (e *Engine) handleAdapterCapabilities(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, e.adapter.Capabilities())
+}
+
+func (e *Engine) handleAdapterTools(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, e.adapter.ToolManifest())
+}
+
+func (e *Engine) handleAdapterTranslate(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	logger := observability.L(ctx, e.logger)
+
+	var req adapter.AgentActionRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		logger.Warn("invalid adapter translate body", "error", err)
+		writeJSON(w, http.StatusBadRequest, models.ErrorResponse{Error: "invalid JSON: " + err.Error()})
+		return
+	}
+	resp, err := e.adapter.Translate(req)
+	if err != nil {
+		logger.Warn("adapter translation failed", "error", err)
+		writeJSON(w, http.StatusBadRequest, models.ErrorResponse{Error: err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (e *Engine) handleAdapterActions(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	logger := observability.L(ctx, e.logger)
+
+	var req adapter.AgentActionRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		logger.Warn("invalid adapter action body", "error", err)
+		writeJSON(w, http.StatusBadRequest, models.ErrorResponse{Error: "invalid JSON: " + err.Error()})
+		return
+	}
+	resp, err := e.adapter.Translate(req)
+	if err != nil {
+		logger.Warn("adapter action translation failed", "error", err)
+		writeJSON(w, http.StatusBadRequest, models.ErrorResponse{Error: err.Error()})
+		return
+	}
+	submit, err := e.validateAndSubmitGraph(ctx, resp.TaskGraph)
+	if err != nil {
+		logger.Warn("adapter task graph submission rejected", "error", err)
+		writeJSON(w, http.StatusBadRequest, models.ErrorResponse{Error: err.Error()})
+		return
+	}
+	resp.Accepted = submit.Accepted
+	resp.TaskIDs = submit.TaskIDs
+	logger.Info("adapter action submitted", "task_count", resp.Accepted, "adapter", req.Adapter)
+	writeJSON(w, http.StatusAccepted, resp)
 }
 
 func (e *Engine) handleMCPListTools(w http.ResponseWriter, r *http.Request) {

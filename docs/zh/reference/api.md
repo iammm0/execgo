@@ -5,7 +5,8 @@
 ## 入口
 
 - 推荐先读：[`HTTP API 入门使用文档`](../integration/http-api-getting-started.md)
-- `POST /tasks`、`GET /tasks/{id}`、`GET /tasks`、`DELETE /tasks/{id}`、`GET /health`、`GET /metrics`
+- 成熟 agent 接入：[`成熟 Agent Adapter 接入`](../integration/agent-adapter.md)
+- `POST /tasks`、`GET /adapters/capabilities`、`GET /adapters/tools`、`POST /adapters/translate`、`POST /adapters/actions`、`GET /tasks/{id}`、`GET /tasks`、`DELETE /tasks/{id}`、`GET /health`、`GET /metrics`
   - 详细总览：[`API 参考`](./API%20参考/API%20参考.md)
 
 ## 你最可能关心的几类问题

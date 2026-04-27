@@ -29,7 +29,7 @@
 10. [附录](#附录)
 
 ## 简介
-本文件为 ExecGo 的 HTTP API 参考文档，覆盖所有公开的 RESTful 端点：POST /tasks、GET /tasks/{id}、GET /tasks、DELETE /tasks/{id}、GET /health、GET /metrics。文档提供每个端点的 HTTP 方法、URL 模式、请求/响应格式、参数说明、返回值定义、错误处理与状态码、认证方式、速率限制、安全考虑、最佳实践以及客户端实现与性能优化建议。
+本文件为 ExecGo 的 HTTP API 参考文档，覆盖主要公开 RESTful 端点：POST /tasks、GET /adapters/capabilities、GET /adapters/tools、POST /adapters/translate、POST /adapters/actions、GET /tasks/{id}、GET /tasks、DELETE /tasks/{id}、GET /health、GET /metrics。文档提供每个端点的 HTTP 方法、URL 模式、请求/响应格式、参数说明、返回值定义、错误处理与状态码、认证方式、速率限制、安全考虑、最佳实践以及客户端实现与性能优化建议。
 
 ## 项目结构
 ExecGo 采用分层架构：入口程序负责初始化配置、日志、指标、状态管理、调度器与 HTTP 服务器；API 层提供 HTTP 路由与处理器；调度器负责 DAG 任务调度与并发控制；执行器模块提供可插拔的执行器（HTTP/Shell/File）；状态模块负责内存与持久化存储；可观测性模块提供结构化日志、追踪与指标。
@@ -165,6 +165,36 @@ API-->>Client : "202 Accepted + SubmitResponse"
 - [handler.go:58-99](file://internal/api/handler.go#L58-L99)
 - [task.go:36-79](file://internal/models/task.go#L36-L79)
 - [executor.go:38-48](file://internal/executor/executor.go#L38-L48)
+
+### Agent Adapter 端点
+- 方法与路径：
+  - GET /adapters/capabilities
+  - GET /adapters/tools
+  - POST /adapters/translate
+  - POST /adapters/actions
+- 功能：为 Claude Code / Codex / OpenClaw 这类成熟 agent 提供结构化 action 接入层。AdapterKernel 会把 action 翻译为现有 TaskGraph，再复用 scheduler、executor 与 store。
+- 请求体（POST /adapters/actions 与 POST /adapters/translate）：
+  - adapter: 字符串，可选，支持 generic、claudecode、codex、openclaw 等 profile 名称
+  - agent_id: 字符串，可选，agent 标识
+  - session_id: 字符串，可选，会话标识
+  - action_id: 字符串，可选，若提供则作为翻译后任务 ID
+  - action: 对象，必填
+    - kind: 字符串，action 类型，例如 os.shell、runtime.command、mcp.call、task_graph.submit
+    - tool_name: 字符串，部分 action 需要，例如 mcp.call
+    - input: 对象，具体工具输入
+    - depends_on、retry、timeout: 与 Task DSL 语义一致
+- 成功响应：
+  - /adapters/translate：200 OK，只返回翻译后的 TaskGraph，不提交执行
+  - /adapters/actions：202 Accepted，返回 accepted、task_ids、task_graph、translation_trace
+- 错误响应：
+  - 400 Bad Request：请求体非 JSON、未知 action kind、翻译后 TaskGraph 校验失败、未知执行器类型
+- 支持的 action kind：
+  - OS：os.shell、os.file、os.http、os.dns、os.tcp、os.sleep、os.noop
+  - Runtime：runtime.command、runtime.script
+  - 扩展：mcp.call、cli.run
+  - 直通：task_graph.submit
+- 说明：直接使用 Task DSL 的开发者继续调用 POST /tasks；成熟 agent 可先调用 GET /adapters/tools 获取工具清单，再提交 action。
+- 详细示例：参考 [成熟 Agent Adapter 接入](../../integration/agent-adapter.md)
 
 ### GET /tasks/{id}
 - 方法与路径：GET /tasks/{id}

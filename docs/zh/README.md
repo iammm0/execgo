@@ -21,6 +21,7 @@
 - [Deploy：Kubernetes](./deploy/kubernetes.md)
 
 ### 3) 多语言 HTTP 接入示例（Go/Java/Python）
+- [Integration：成熟 Agent Adapter 接入](./integration/agent-adapter.md)
 - [Integration：HTTP API 入门使用文档](./integration/http-api-getting-started.md)
 - [Integration：Go 示例](./integration/client-go.md)
 - [Integration：Java 示例](./integration/client-java.md)

@@ -129,6 +129,30 @@ curl -X POST http://localhost:8080/tasks \
   }'
 ```
 
+**成熟 Agent Adapter | Mature agent adapter:**
+
+如果你已经有 Claude Code / Codex / OpenClaw 这类成熟 agent，不想让它们手写完整 Task DSL，可以先读取 ExecGo 暴露的工具清单，再提交结构化 action：
+
+```bash
+curl http://localhost:8080/adapters/tools
+
+curl -X POST http://localhost:8080/adapters/actions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "adapter": "codex",
+    "agent_id": "agent-1",
+    "action_id": "hello-adapter",
+    "action": {
+      "kind": "os.noop",
+      "input": {"message": "hello adapter"}
+    }
+  }'
+```
+
+Adapter 层会把 action 翻译为现有 `TaskGraph`，再进入同一套 scheduler / executor / store 流程。直接掌控底层 DSL 的开发者仍然可以继续使用 `POST /tasks`。
+
+For mature agents such as Claude Code, Codex, or OpenClaw, use `/adapters/tools` to discover ExecGo capabilities and `/adapters/actions` to submit structured actions. The adapter translates actions into the existing `TaskGraph` contract; direct Task DSL submission through `POST /tasks` remains unchanged.
+
 ### 查询任务 | Query Tasks
 
 ```bash
@@ -176,7 +200,9 @@ git push origin v1.0.0
 
 - 中文总入口：[`docs/zh/README.md`](docs/zh/README.md)
 - 中文 HTTP API 入门：[`docs/zh/integration/http-api-getting-started.md`](docs/zh/integration/http-api-getting-started.md)
+- 中文成熟 Agent Adapter 接入：[`docs/zh/integration/agent-adapter.md`](docs/zh/integration/agent-adapter.md)
 - English total entry：[`docs/en/README.md`](docs/en/README.md)
+- English mature agent adapter：[`docs/en/integration/agent-adapter.md`](docs/en/integration/agent-adapter.md)
 
 ---
 

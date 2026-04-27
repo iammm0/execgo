@@ -3,6 +3,10 @@
 ExecGo exposes a small HTTP API for task submission and task lifecycle management:
 
 - `POST /tasks`: submit a `TaskGraph` for async execution
+- `GET /adapters/capabilities`: discover the mature-agent adapter contract
+- `GET /adapters/tools`: discover adapter action tools for mature agents
+- `POST /adapters/translate`: translate a structured action without submitting it
+- `POST /adapters/actions`: translate and submit a structured action
 - `GET /tasks/{id}`: fetch a single task state (`pending/running/success/failed/skipped`) plus `result` / `error`
 - `GET /tasks`: list all tasks
 - `DELETE /tasks/{id}`: delete a task from the state store
@@ -12,6 +16,7 @@ ExecGo exposes a small HTTP API for task submission and task lifecycle managemen
 ## Full details
 
 - [`API 参考`](../../zh/reference/API%20参考/API%20参考.md) (Chinese full text)
+- [Mature agent adapter integration](../integration/agent-adapter.md)
 
 If you prefer English-only reading, use this index together with the example sections in the orchestration and integration guides.
 
@@ -45,4 +50,3 @@ curl -X POST http://localhost:8080/tasks \
 ```bash
 curl http://localhost:8080/tasks/fetch-data
 ```
-

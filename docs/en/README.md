@@ -18,6 +18,7 @@ If you already read the root `README.md` quick start, continue from the sections
 - [Deploy：Kubernetes](./deploy/kubernetes.md)
 
 ### 3) Multi-language HTTP integration examples (Go/Java/Python)
+- [Integration：Mature agent adapter](./integration/agent-adapter.md)
 - [Integration：Go example](./integration/client-go.md)
 - [Integration：Java example](./integration/client-java.md)
 - [Integration：Python example](./integration/client-python.md)
@@ -34,4 +35,3 @@ If you already read the root `README.md` quick start, continue from the sections
 ## Versioning
 
 Docs reflect the current repository behavior. When upgrading ExecGo, double-check `TaskGraph` submission/validation and executor parameter compatibility.
-
