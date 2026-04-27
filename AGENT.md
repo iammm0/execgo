@@ -12,6 +12,7 @@ Core responsibilities:
 - Validate and schedule tasks with dependency ordering, retries, timeouts, and bounded concurrency.
 - Execute tasks through the V2 executor model: category + tool.
 - Persist task state to disk through the default JSON file store.
+- Provide an optional “mature agent adapter” layer that translates structured actions into TaskGraph submissions (`/adapters/*`).
 
 The repository is not just a demo. The main execution path is real and tested.
 
@@ -21,11 +22,20 @@ Design bias:
 - Keep the core runtime disciplined and modular.
 - Do not drift into a generic workflow engine unless the user explicitly wants that tradeoff.
 
+## Repo Conventions (Docs & Tests)
+
+- GitHub renders `README.md` by default, so this repo keeps:
+  - `README.md` (English)
+  - `README.zh-CN.md` (Chinese)
+- All test code should live under `tests/` (blackbox style), not under `pkg/*`.
+
 ## Current Architecture
 
 Important directories:
 
 - `cmd/execgo`: binary entrypoint, runtime wiring, graceful shutdown, optional gRPC startup.
+- `cmd/execgocli`: stdlib-only helper for `GET/POST /adapters/*`, `POST /tasks`, and task polling (`internal/execgocli`).
+- `.skill/`: repo-local SOP for Codex / Claude Code / agents (start at `.skill/README.md`); optional Cursor pointer at `.cursor/skills/execgocli-adapter/SKILL.md`.
 - `pkg/models`: core task and API response models.
 - `pkg/httpserver`: HTTP routing and handlers.
 - `pkg/scheduler`: DAG scheduling, retries, timeout handling, dependency propagation.
@@ -33,7 +43,7 @@ Important directories:
 - `pkg/store`: storage interfaces.
 - `pkg/store/jsonfile`: default persistent store implementation.
 - `pkg/observability`: structured logging, trace ID middleware, metrics counters.
-- `tests/unit`: small isolated tests.
+- `tests/unit`: small isolated blackbox tests (import public packages, use `package unit_test`).
 - `tests/module`: scheduler-level behavioral tests.
 - `tests/integration`: HTTP and MCP flow tests.
 - `contrib/*`: optional modules such as gRPC API server, SQLite store, Redis cache wrapper.
@@ -47,6 +57,15 @@ Built-in categories:
 - `os`
 - `mcp`
 - `cli-skills`
+- `runtime` (delegates to the external `execgo-runtime` project via HTTP)
+
+Implementation layout note:
+
+- In `pkg/executor/`, keep one file per built-in category:
+  - `os.go`
+  - `mcp.go`
+  - `cli.go`
+  - `runtime.go`
 
 Built-in `os` tools currently include:
 
@@ -60,7 +79,7 @@ Built-in `os` tools currently include:
 
 Compatibility note:
 
-- Legacy task types like `shell` and `http` are normalized into the `os` category by `pkg/executor/normalize.go`.
+- Legacy task types like `shell` and `http` are normalized into the `os` category by `pkg/executor/normalize_task.go`.
 - Do not remove that compatibility path unless the whole API contract is intentionally being changed.
 
 ## What To Read First
@@ -68,12 +87,13 @@ Compatibility note:
 Before changing behavior, read these files first:
 
 - `README.md`
+- `README.zh-CN.md`
 - `cmd/execgo/main.go`
 - `pkg/models/task.go`
 - `pkg/httpserver/engine.go`
 - `pkg/scheduler/scheduler.go`
-- `pkg/executor/executor.go`
-- `pkg/executor/normalize.go`
+- `pkg/executor/core.go`
+- `pkg/executor/normalize_task.go`
 
 If touching tests or runtime wiring, also read:
 
@@ -84,6 +104,17 @@ If touching gRPC, also read:
 - `cmd/execgo/grpc_start.go`
 - `cmd/execgo/grpc_start_stub.go`
 - `contrib/grpcapi/pkg/grpcserver/server.go`
+
+If touching the mature agent adapter, also read:
+
+- `pkg/adapter/adapter.go`
+- `docs/zh/integration/agent-adapter.md`
+- `docs/en/integration/agent-adapter.md`
+
+If touching runtime integration, also read:
+
+- `docs/en/overview/execgo-and-runtime.md`
+- `docs/zh/overview/execgo-and-runtime.md`
 
 ## Development Rules
 

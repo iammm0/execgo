@@ -1,6 +1,4 @@
-// Tests for RuntimeExecutor / RuntimeExecutor 测试。
-// Author: iammm0; Last edited: 2026-04-23
-package executor
+package unit_test
 
 import (
 	"context"
@@ -9,10 +7,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/iammm0/execgo/pkg/executor"
 	"github.com/iammm0/execgo/pkg/models"
 )
 
-// TestRuntimeExecutorExecuteInjectsTaskIDAndReturnsAcceptedHandle verifies submit payload injection and handle semantics / 验证提交时 task_id 注入与 handle 语义。
 func TestRuntimeExecutorExecuteInjectsTaskIDAndReturnsAcceptedHandle(t *testing.T) {
 	var got map[string]any
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -30,7 +28,7 @@ func TestRuntimeExecutorExecuteInjectsTaskIDAndReturnsAcceptedHandle(t *testing.
 	}))
 	defer srv.Close()
 
-	exec := NewRuntimeExecutor(srv.URL, srv.Client(), "", "")
+	exec := executor.NewRuntimeExecutor(srv.URL, srv.Client(), "", "")
 	res, err := exec.Execute(context.Background(), &models.Task{
 		ID:    "runtime-task",
 		Type:  "runtime",
@@ -50,7 +48,6 @@ func TestRuntimeExecutorExecuteInjectsTaskIDAndReturnsAcceptedHandle(t *testing.
 	}
 }
 
-// TestRuntimeExecutorGetHandleMapsStructuredRuntimeError verifies structured error mapping / 验证结构化错误映射。
 func TestRuntimeExecutorGetHandleMapsStructuredRuntimeError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/api/v1/tasks/task-1" {
@@ -69,7 +66,7 @@ func TestRuntimeExecutorGetHandleMapsStructuredRuntimeError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	exec := NewRuntimeExecutor(srv.URL, srv.Client(), "", "")
+	exec := executor.NewRuntimeExecutor(srv.URL, srv.Client(), "", "")
 	res, ok := exec.GetHandle("task-1")
 	if !ok {
 		t.Fatal("expected handle lookup to succeed")
@@ -88,7 +85,6 @@ func TestRuntimeExecutorGetHandleMapsStructuredRuntimeError(t *testing.T) {
 	}
 }
 
-// TestRuntimeExecutorGetHandleFallsBackToTaskIDWhenHandleNotFound verifies handle->task_id fallback / 验证 handle 查询失败时回退 task_id。
 func TestRuntimeExecutorGetHandleFallsBackToTaskIDWhenHandleNotFound(t *testing.T) {
 	var (
 		seenSubmit bool
@@ -123,7 +119,7 @@ func TestRuntimeExecutorGetHandleFallsBackToTaskIDWhenHandleNotFound(t *testing.
 	}))
 	defer srv.Close()
 
-	exec := NewRuntimeExecutor(srv.URL, srv.Client(), "", "")
+	exec := executor.NewRuntimeExecutor(srv.URL, srv.Client(), "", "")
 	_, err := exec.Execute(context.Background(), &models.Task{
 		ID:    "client-task",
 		Type:  "runtime",
@@ -144,7 +140,6 @@ func TestRuntimeExecutorGetHandleFallsBackToTaskIDWhenHandleNotFound(t *testing.
 	}
 }
 
-// TestRuntimeExecutorCancelHandleFallsBackToTaskIDWhenHandleNotFound verifies cancel fallback / 验证取消操作的 task_id 回退。
 func TestRuntimeExecutorCancelHandleFallsBackToTaskIDWhenHandleNotFound(t *testing.T) {
 	var (
 		seenSubmit bool
@@ -179,7 +174,7 @@ func TestRuntimeExecutorCancelHandleFallsBackToTaskIDWhenHandleNotFound(t *testi
 	}))
 	defer srv.Close()
 
-	exec := NewRuntimeExecutor(srv.URL, srv.Client(), "", "")
+	exec := executor.NewRuntimeExecutor(srv.URL, srv.Client(), "", "")
 	_, err := exec.Execute(context.Background(), &models.Task{
 		ID:    "client-task",
 		Type:  "runtime",
@@ -200,7 +195,6 @@ func TestRuntimeExecutorCancelHandleFallsBackToTaskIDWhenHandleNotFound(t *testi
 	}
 }
 
-// TestRuntimeExecutorGetEventsFallsBackToTaskIDWhenHandleNotFound verifies events fallback / 验证事件查询的 task_id 回退。
 func TestRuntimeExecutorGetEventsFallsBackToTaskIDWhenHandleNotFound(t *testing.T) {
 	var (
 		seenSubmit  bool
@@ -240,7 +234,7 @@ func TestRuntimeExecutorGetEventsFallsBackToTaskIDWhenHandleNotFound(t *testing.
 	}))
 	defer srv.Close()
 
-	exec := NewRuntimeExecutor(srv.URL, srv.Client(), "", "")
+	exec := executor.NewRuntimeExecutor(srv.URL, srv.Client(), "", "")
 	_, err := exec.Execute(context.Background(), &models.Task{
 		ID:    "client-task",
 		Type:  "runtime",
@@ -265,7 +259,6 @@ func TestRuntimeExecutorGetEventsFallsBackToTaskIDWhenHandleNotFound(t *testing.
 	}
 }
 
-// TestRuntimeExecutorIntrospectionEndpoints verifies runtime introspection endpoints / 验证 runtime 自省端点。
 func TestRuntimeExecutorIntrospectionEndpoints(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -283,7 +276,7 @@ func TestRuntimeExecutorIntrospectionEndpoints(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	exec := NewRuntimeExecutor(srv.URL, srv.Client(), "", "")
+	exec := executor.NewRuntimeExecutor(srv.URL, srv.Client(), "", "")
 	ctx := context.Background()
 
 	if raw, err := exec.GetRuntimeInfo(ctx); err != nil || len(raw) == 0 {
@@ -300,8 +293,6 @@ func TestRuntimeExecutorIntrospectionEndpoints(t *testing.T) {
 	}
 }
 
-// TestRuntimeExecutorSubmitInjectsControlContextTenantOwner verifies that tenant/owner are injected into control_context /
-// 验证 tenant/owner 被注入到 control_context。
 func TestRuntimeExecutorSubmitInjectsControlContextTenantOwner(t *testing.T) {
 	var got map[string]any
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -319,7 +310,7 @@ func TestRuntimeExecutorSubmitInjectsControlContextTenantOwner(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	exec := NewRuntimeExecutor(srv.URL, srv.Client(), "acme", "alice")
+	exec := executor.NewRuntimeExecutor(srv.URL, srv.Client(), "acme", "alice")
 	_, err := exec.Execute(context.Background(), &models.Task{
 		ID:    "t1",
 		Type:  "runtime",
@@ -340,8 +331,6 @@ func TestRuntimeExecutorSubmitInjectsControlContextTenantOwner(t *testing.T) {
 	}
 }
 
-// TestRuntimeExecutorSubmitPreservesExistingControlContext verifies that task-supplied control_context values are not overwritten /
-// 验证任务已有的 control_context 字段不会被覆盖。
 func TestRuntimeExecutorSubmitPreservesExistingControlContext(t *testing.T) {
 	var got map[string]any
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -361,7 +350,7 @@ func TestRuntimeExecutorSubmitPreservesExistingControlContext(t *testing.T) {
 
 	// task already supplies control_context.owner; executor tenant/owner should only fill missing fields.
 	// 任务已提供 control_context.owner；executor 仅补全缺失字段。
-	exec := NewRuntimeExecutor(srv.URL, srv.Client(), "acme", "executor-owner")
+	exec := executor.NewRuntimeExecutor(srv.URL, srv.Client(), "acme", "executor-owner")
 	_, err := exec.Execute(context.Background(), &models.Task{
 		ID:   "t2",
 		Type: "runtime",
@@ -377,22 +366,17 @@ func TestRuntimeExecutorSubmitPreservesExistingControlContext(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected control_context in payload, got %#v", got["control_context"])
 	}
-	// task-supplied owner must not be overwritten.
 	if cc["owner"] != "task-owner" {
 		t.Fatalf("expected owner=task-owner (task-supplied), got %#v", cc["owner"])
 	}
-	// tenant was absent in task payload; executor should have filled it.
 	if cc["tenant"] != "acme" {
 		t.Fatalf("expected tenant=acme (executor-injected), got %#v", cc["tenant"])
 	}
-	// extra field from task payload must be preserved.
 	if cc["extra"] != "x" {
 		t.Fatalf("expected extra=x preserved, got %#v", cc["extra"])
 	}
 }
 
-// TestRuntimeExecutorKillCarriesOwnerHeader verifies that the kill request includes X-Execgo-Owner when owner is set /
-// 验证取消请求在设置 owner 时携带 X-Execgo-Owner 头。
 func TestRuntimeExecutorKillCarriesOwnerHeader(t *testing.T) {
 	var killHeader string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -416,7 +400,7 @@ func TestRuntimeExecutorKillCarriesOwnerHeader(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	exec := NewRuntimeExecutor(srv.URL, srv.Client(), "", "alice")
+	exec := executor.NewRuntimeExecutor(srv.URL, srv.Client(), "", "alice")
 	_, err := exec.Execute(context.Background(), &models.Task{
 		ID:    "t3",
 		Type:  "runtime",
@@ -437,8 +421,6 @@ func TestRuntimeExecutorKillCarriesOwnerHeader(t *testing.T) {
 	}
 }
 
-// TestRuntimeExecutorKillOmitsOwnerHeaderWhenUnset verifies that no X-Execgo-Owner header is sent when owner is empty /
-// 验证 owner 为空时取消请求不携带 X-Execgo-Owner 头。
 func TestRuntimeExecutorKillOmitsOwnerHeaderWhenUnset(t *testing.T) {
 	var killHeader string
 	var killHeaderPresent bool
@@ -464,7 +446,7 @@ func TestRuntimeExecutorKillOmitsOwnerHeaderWhenUnset(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	exec := NewRuntimeExecutor(srv.URL, srv.Client(), "", "")
+	exec := executor.NewRuntimeExecutor(srv.URL, srv.Client(), "", "")
 	_, err := exec.Execute(context.Background(), &models.Task{
 		ID:    "t4",
 		Type:  "runtime",

@@ -86,6 +86,20 @@ go build -o execgo ./cmd/execgo
 EXECGO_ADDR=:9090 EXECGO_MAX_CONCURRENCY=20 ./execgo
 ```
 
+### 适配器 CLI（`execgocli`）
+
+面向 **Claude Code / Codex** 等接入方式，可构建通用 CLI（仅标准库 HTTP）：
+
+```bash
+go build -o execgocli ./cmd/execgocli
+export EXECGO_URL=http://127.0.0.1:8080
+./execgocli tools
+```
+
+- 中文：[模式 A（CLI）](docs/zh/integration/mode-a-cli.md) · [JSON 契约](docs/zh/reference/execgo-cli-contract.md)
+- English: [Mode A (CLI)](docs/en/integration/mode-a-cli.md) · [JSON contract](docs/en/reference/execgo-cli-contract.md)
+- **给 Codex / Claude Code / 自动化代理：** 已内置完整操作说明目录 **[`.skill/`](.skill/README.md)**；Cursor 项目技能入口见 **[`.cursor/skills/execgocli-adapter/SKILL.md`](.cursor/skills/execgocli-adapter/SKILL.md)**（指向同套内容）。
+
 ### 提交任务
 
 单个任务：

@@ -1,5 +1,9 @@
+// Package adapter 为成熟 agent（Claude Code / Codex / OpenClaw 等）提供“结构化 action → ExecGo Task DSL”的翻译层。
+// 它位于上层 agent 与 ExecGo 执行内核之间，负责把框架无关的 action 归一化、校验并翻译为 TaskGraph。
+//
 // Package adapter translates mature-agent actions into ExecGo Task DSL.
-// It is the companion kernel between higher-level agents and the execution kernel.
+// It sits between higher-level agents and the ExecGo execution kernel: normalizing, validating,
+// and translating framework-neutral actions into TaskGraph values.
 package adapter
 
 import (
@@ -13,14 +17,20 @@ import (
 
 const SchemaVersion = "adapter.v1"
 
-// AdapterKernel validates agent actions and translates them into TaskGraph values.
+// AdapterKernel 校验成熟 agent 的 action 并翻译成 TaskGraph。
+//
+// AdapterKernel validates mature-agent actions and translates them into TaskGraph values.
 type AdapterKernel struct{}
 
-// NewAdapterKernel creates the default deterministic adapter kernel.
+// NewAdapterKernel 创建默认的确定性 adapter kernel（无外部依赖、纯函数式翻译）。
+//
+// NewAdapterKernel creates the default deterministic adapter kernel (no external dependencies).
 func NewAdapterKernel() *AdapterKernel {
 	return &AdapterKernel{}
 }
 
+// AgentActionRequest 是成熟 agent 调用 `/adapters/*` 端点时使用的公共请求封装。
+//
 // AgentActionRequest is the public envelope accepted from mature agents.
 type AgentActionRequest struct {
 	Adapter   string            `json:"adapter,omitempty"`
@@ -31,6 +41,8 @@ type AgentActionRequest struct {
 	Metadata  map[string]string `json:"metadata,omitempty"`
 }
 
+// AgentAction 是框架无关的 action 形状，由 AdapterKernel 翻译为 ExecGo 任务。
+//
 // AgentAction is the framework-neutral action shape translated by AdapterKernel.
 type AgentAction struct {
 	Kind      string          `json:"kind"`
@@ -41,6 +53,8 @@ type AgentAction struct {
 	Timeout   int64           `json:"timeout,omitempty"`
 }
 
+// AgentActionResponse 返回翻译后的 TaskGraph，以及可用于调试/审计的翻译痕迹。
+//
 // AgentActionResponse returns the translated graph and trace metadata.
 type AgentActionResponse struct {
 	Accepted         int               `json:"accepted"`
@@ -49,6 +63,8 @@ type AgentActionResponse struct {
 	TranslationTrace map[string]any    `json:"translation_trace,omitempty"`
 }
 
+// AdapterCapabilitiesResponse 描述 adapter 的稳定契约（schema_version）、支持的 profile 与 action 词表。
+//
 // AdapterCapabilitiesResponse describes the adapter contract and supported profiles.
 type AdapterCapabilitiesResponse struct {
 	SchemaVersion      string   `json:"schema_version"`
@@ -57,12 +73,16 @@ type AdapterCapabilitiesResponse struct {
 	CompatibilityNotes []string `json:"compatibility_notes,omitempty"`
 }
 
+// ToolManifestResponse 以 agent 友好的方式暴露 ExecGo 可用工具清单（可当作 tools/skills）。
+//
 // ToolManifestResponse exposes ExecGo tools in an agent-friendly form.
 type ToolManifestResponse struct {
 	SchemaVersion string          `json:"schema_version"`
 	Tools         []AgentToolSpec `json:"tools"`
 }
 
+// AgentToolSpec 描述一个 adapter 层“工具/动作”规范（名称、kind、输入 schema 与别名）。
+//
 // AgentToolSpec describes one adapter-level tool/action.
 type AgentToolSpec struct {
 	Name        string         `json:"name"`
@@ -88,6 +108,8 @@ var supportedKinds = []string{
 	"task_graph.submit",
 }
 
+// Capabilities 返回 adapter 能力集：schema 版本、profiles 与稳定 action 词表。
+//
 // Capabilities returns the adapter profiles and stable action vocabulary.
 func (k *AdapterKernel) Capabilities() AdapterCapabilitiesResponse {
 	_ = k
@@ -103,6 +125,8 @@ func (k *AdapterKernel) Capabilities() AdapterCapabilitiesResponse {
 	}
 }
 
+// ToolManifest 返回稳定的工具清单，方便成熟 agent 直接暴露为 tools/skills（避免手写 DSL）。
+//
 // ToolManifest returns a stable manifest that mature agents can expose as tools or skills.
 func (k *AdapterKernel) ToolManifest() ToolManifestResponse {
 	_ = k
@@ -126,6 +150,8 @@ func (k *AdapterKernel) ToolManifest() ToolManifestResponse {
 	}
 }
 
+// Translate 把单个 agent action 请求翻译为 ExecGo TaskGraph（并执行 TaskGraph.Validate 校验）。
+//
 // Translate converts one agent action request into an ExecGo TaskGraph.
 func (k *AdapterKernel) Translate(req AgentActionRequest) (*AgentActionResponse, error) {
 	_ = k
@@ -187,6 +213,8 @@ func (k *AdapterKernel) Translate(req AgentActionRequest) (*AgentActionResponse,
 	}, nil
 }
 
+// NormalizeActionKind 将成熟 agent 的别名/口语化 kind 映射到稳定的 v1 action 词表。
+//
 // NormalizeActionKind maps mature-agent aliases onto the stable v1 action vocabulary.
 func NormalizeActionKind(kind string) (string, error) {
 	k := strings.ToLower(strings.TrimSpace(kind))
@@ -220,6 +248,9 @@ func NormalizeActionKind(kind string) (string, error) {
 	return "", fmt.Errorf("invalid adapter action: unknown action kind %q", kind)
 }
 
+// osTask 将 os.* action 翻译为 ExecGo `type=os` 的任务，并在必要时对输入做兼容归一化。
+//
+// osTask translates os.* actions into an ExecGo `type=os` task (with compatibility normalization when needed).
 func osTask(req AgentActionRequest, rawKind, kind string) (*models.Task, error) {
 	input, err := normalizeOSInput(req.Action.Input, rawKind)
 	if err != nil {
@@ -238,6 +269,9 @@ func osTask(req AgentActionRequest, rawKind, kind string) (*models.Task, error) 
 	}, nil
 }
 
+// runtimeTask 将 runtime.* action 翻译为 ExecGo `type=runtime` 的任务（由 runtime executor 对接 execgo-runtime）。
+//
+// runtimeTask translates runtime.* actions into an ExecGo `type=runtime` task (handled by the runtime executor).
 func runtimeTask(req AgentActionRequest, kind string) (*models.Task, error) {
 	payload, taskIDValue, err := runtimePayload(req, kind)
 	if err != nil {
@@ -255,6 +289,9 @@ func runtimeTask(req AgentActionRequest, kind string) (*models.Task, error) {
 	}, nil
 }
 
+// mcpTask 将 mcp.call 翻译为 `type=mcp` 的任务；tool_name 可来自 Action.ToolName 或输入体。
+//
+// mcpTask translates mcp.call into a `type=mcp` task; tool_name may come from Action.ToolName or the input body.
 func mcpTask(req AgentActionRequest, kind string) (*models.Task, error) {
 	toolName := strings.TrimSpace(req.Action.ToolName)
 	if toolName == "" {
@@ -280,6 +317,9 @@ func mcpTask(req AgentActionRequest, kind string) (*models.Task, error) {
 	}, nil
 }
 
+// cliTask 将 cli.run 翻译为 `type=cli-skills` 的任务。
+//
+// cliTask translates cli.run into a `type=cli-skills` task.
 func cliTask(req AgentActionRequest, kind string) (*models.Task, error) {
 	return &models.Task{
 		ID:          taskID(req.ActionID),
@@ -294,6 +334,12 @@ func cliTask(req AgentActionRequest, kind string) (*models.Task, error) {
 	}, nil
 }
 
+// runtimePayload 构造 execgo-runtime 提交体，并尽可能兼容两种输入形式：
+// - input.execution = {...}（已是 runtime 形状）
+// - 扁平字段（program/args 或 script/interpreter），会归一化成 execution
+//
+// runtimePayload builds the execgo-runtime request payload, supporting both an explicit `execution` object
+// and a flat input shape that gets normalized into `execution`.
 func runtimePayload(req AgentActionRequest, kind string) (json.RawMessage, string, error) {
 	in, err := rawObject(req.Action.Input)
 	if err != nil {
@@ -341,6 +387,9 @@ func runtimePayload(req AgentActionRequest, kind string) (json.RawMessage, strin
 	return data, taskIDValue, nil
 }
 
+// runtimeExecution 根据 kind 生成最小可用的 execution 对象（command/script 二选一），并合并 env。
+//
+// runtimeExecution builds the minimal `execution` object based on kind (command vs script) and merges env.
 func runtimeExecution(in map[string]any, kind string) (map[string]any, error) {
 	execution := map[string]any{"kind": strings.TrimPrefix(kind, "runtime.")}
 	if kind == "runtime.command" {
@@ -368,6 +417,11 @@ func runtimeExecution(in map[string]any, kind string) (map[string]any, error) {
 	return execution, nil
 }
 
+// graphFromActionInput 从 action.input 解析 TaskGraph；支持两种形式：
+// - {"task_graph": {...}}
+// - {"tasks": [...]}
+//
+// graphFromActionInput parses a TaskGraph from action.input, supporting either `task_graph` or `tasks`.
 func graphFromActionInput(raw json.RawMessage) (*models.TaskGraph, error) {
 	if len(raw) == 0 {
 		return nil, fmt.Errorf("invalid adapter action: input is required for task_graph.submit")
@@ -388,6 +442,9 @@ func graphFromActionInput(raw json.RawMessage) (*models.TaskGraph, error) {
 	return nil, fmt.Errorf("invalid adapter action: input must contain tasks or task_graph")
 }
 
+// normalizeOSInput 为部分历史 alias 做输入归一化（例如 file.read / file.write 自动补 action 字段）。
+//
+// normalizeOSInput performs compatibility normalization for some legacy aliases (e.g. file.read/file.write).
 func normalizeOSInput(raw json.RawMessage, rawKind string) (json.RawMessage, error) {
 	input := cloneRaw(raw)
 	switch strings.ToLower(strings.TrimSpace(rawKind)) {
@@ -400,6 +457,9 @@ func normalizeOSInput(raw json.RawMessage, rawKind string) (json.RawMessage, err
 	}
 }
 
+// inputWithDefaultAction 当缺少 action 字段时补默认值（主要用于 os.file 的 read/write 别名）。
+//
+// inputWithDefaultAction injects a default `action` when missing (primarily for os.file read/write aliases).
 func inputWithDefaultAction(raw json.RawMessage, action string) (json.RawMessage, error) {
 	obj, err := rawObject(raw)
 	if err != nil {
@@ -415,6 +475,9 @@ func inputWithDefaultAction(raw json.RawMessage, action string) (json.RawMessage
 	return data, nil
 }
 
+// rawObject 将 input 解析为 JSON object；空 input 会返回空 map。
+//
+// rawObject parses the raw input into a JSON object; an empty input yields an empty map.
 func rawObject(raw json.RawMessage) (map[string]any, error) {
 	if len(raw) == 0 {
 		return map[string]any{}, nil
@@ -429,6 +492,9 @@ func rawObject(raw json.RawMessage) (map[string]any, error) {
 	return obj, nil
 }
 
+// taskID 选择任务 ID：优先使用 action_id，否则生成一个可读的时间戳派生 ID。
+//
+// taskID picks the task ID: use action_id when present, otherwise generate a timestamp-derived ID.
 func taskID(id string) string {
 	id = strings.TrimSpace(id)
 	if id != "" {
@@ -437,6 +503,9 @@ func taskID(id string) string {
 	return fmt.Sprintf("adapter-%d", time.Now().UnixNano())
 }
 
+// taskIDs 收集 graph 中所有任务的 ID（保持原顺序）。
+//
+// taskIDs collects all task IDs in the graph (preserving order).
 func taskIDs(graph *models.TaskGraph) []string {
 	out := make([]string, 0, len(graph.Tasks))
 	for _, task := range graph.Tasks {
@@ -445,6 +514,10 @@ func taskIDs(graph *models.TaskGraph) []string {
 	return out
 }
 
+// provenance 生成可追溯的 annotations/metadata：schema 版本、adapter profile、action kind 与可选的 agent/session/action 标识。
+//
+// provenance builds traceable annotations/metadata: schema version, adapter profile, action kind,
+// and optional agent/session/action identifiers.
 func provenance(req AgentActionRequest, kind string) map[string]string {
 	out := mergeStringMaps(req.Metadata, map[string]string{
 		"adapter_schema": SchemaVersion,
@@ -463,6 +536,9 @@ func provenance(req AgentActionRequest, kind string) map[string]string {
 	return out
 }
 
+// adapterName 规范化 adapter profile 名称；空值回退为 generic。
+//
+// adapterName normalizes the adapter profile name; empty falls back to "generic".
 func adapterName(name string) string {
 	name = strings.ToLower(strings.TrimSpace(name))
 	if name == "" {
@@ -471,6 +547,9 @@ func adapterName(name string) string {
 	return name
 }
 
+// cloneRaw 复制一份 RawMessage，避免调用方复用同一底层 slice 时产生意外修改。
+//
+// cloneRaw copies a RawMessage to avoid accidental mutation through shared backing slices.
 func cloneRaw(raw json.RawMessage) json.RawMessage {
 	if len(raw) == 0 {
 		return nil
@@ -480,6 +559,9 @@ func cloneRaw(raw json.RawMessage) json.RawMessage {
 	return out
 }
 
+// cloneMap 浅拷贝 map，用于在补默认字段前避免就地修改输入对象。
+//
+// cloneMap shallow-copies a map to avoid in-place mutation when adding defaults.
 func cloneMap(in map[string]any) map[string]any {
 	out := make(map[string]any, len(in))
 	for k, v := range in {
@@ -488,6 +570,9 @@ func cloneMap(in map[string]any) map[string]any {
 	return out
 }
 
+// mergeStringMaps 合并多个 string map；会 trim key/value，并忽略空 key 或空 value。
+//
+// mergeStringMaps merges multiple string maps; trims key/value and drops empty keys/values.
 func mergeStringMaps(items ...map[string]string) map[string]string {
 	out := make(map[string]string)
 	for _, item := range items {
@@ -502,12 +587,18 @@ func mergeStringMaps(items ...map[string]string) map[string]string {
 	return out
 }
 
+// stringValue 从 any 中提取非空字符串（会 trim）。
+//
+// stringValue extracts a non-empty string from any (with trimming).
 func stringValue(v any) (string, bool) {
 	s, ok := v.(string)
 	s = strings.TrimSpace(s)
 	return s, ok && s != ""
 }
 
+// stringSliceValue 将 []any 解析为 []string（所有元素必须为 string）。
+//
+// stringSliceValue parses a []any into a []string (all elements must be strings).
 func stringSliceValue(v any) ([]string, bool) {
 	raw, ok := v.([]any)
 	if !ok {
@@ -524,6 +615,9 @@ func stringSliceValue(v any) ([]string, bool) {
 	return out, true
 }
 
+// stringMapValue 将 map[string]any 转换为 map[string]string（仅保留 string 值）。
+//
+// stringMapValue converts map[string]any into map[string]string (keeping only string values).
 func stringMapValue(v any) map[string]string {
 	raw, ok := v.(map[string]any)
 	if !ok {

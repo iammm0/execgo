@@ -148,3 +148,8 @@ func RegisterBuiltins() {
 	Register(NewCLISkillsExecutor(nil))
 	Register(NewRuntimeExecutorFromEnv())
 }
+
+func mustJSONMarshal(v any) json.RawMessage {
+	b, _ := json.Marshal(v)
+	return b
+}

@@ -7,6 +7,8 @@ ExecGo 现在有两条 HTTP 接入路径：
 
 Adapter 路径面向 Claude Code / Codex / OpenClaw 这类成熟 agent。它不解析自然语言，也不绑定这些 agent 的私有内部协议；它只接受显式 JSON action，并由伴生 `AdapterKernel` 确定性翻译成 ExecGo 已有的 Task DSL。
 
+**通用 CLI：** 在仓库内构建 `execgocli`（`cmd/execgocli`）即可用稳定 JSON 外壳走同一套 HTTP 流程，见 [模式 A 快速开始（CLI）](mode-a-cli.md) 与 [execgocli JSON 契约](../reference/execgo-cli-contract.md)。**模式 B**（`translate` + `POST /tasks`）见 [模式 B 升级路径](mode-b-upgrade.md)。
+
 ## 端点
 
 | 方法 | 路径 | 用途 |

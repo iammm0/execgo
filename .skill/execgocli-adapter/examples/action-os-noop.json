@@ -1,0 +1,15 @@
+{
+  "adapter": "codex",
+  "agent_id": "example-agent",
+  "session_id": "example-session",
+  "action_id": "ex-noop-1",
+  "action": {
+    "kind": "os.noop",
+    "input": {
+      "message": "from .skill example"
+    }
+  },
+  "metadata": {
+    "example": "execgocli-adapter"
+  }
+}

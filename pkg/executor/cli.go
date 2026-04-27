@@ -99,8 +99,3 @@ func (e *CLISkillsExecutor) HealthCheck() error { return nil }
 
 // Shutdown 关闭 CLI skills executor 并释放资源 / shuts down the CLI skills executor and releases resources.
 func (e *CLISkillsExecutor) Shutdown(ctx context.Context) error { _ = ctx; return nil }
-
-func mustJSONMarshal(v any) json.RawMessage {
-	b, _ := json.Marshal(v)
-	return b
-}

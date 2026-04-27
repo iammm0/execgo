@@ -22,12 +22,16 @@ If you already read the root `README.md` quick start, continue from the sections
 
 ### 3) Multi-language HTTP integration examples (Go/Java/Python)
 - [Integration：Mature agent adapter](./integration/agent-adapter.md)
+- [Integration：Mode A — `execgocli` quick start](./integration/mode-a-cli.md)
+- [Integration：Mode B — translate + TaskGraph upgrade](./integration/mode-b-upgrade.md)
 - [Integration：Go example](./integration/client-go.md)
 - [Integration：Java example](./integration/client-java.md)
 - [Integration：Python example](./integration/client-python.md)
 - [Integration：Node.js + TypeScript example](./integration/client-nodejs-ts.md)
 
 ### 4) Reference (API / Task DSL / executor parameters)
+- [Reference：execgocli JSON contract](./reference/execgo-cli-contract.md)
+- [Reference：Promotion security defaults](./reference/promotion-security.md)
 - [Reference：API endpoints & errors](./reference/api.md)
 - [Reference：Task DSL (task model & validation)](./reference/task-dsl.md)
 - [Reference：executor parameters & built-ins](./reference/executors.md)

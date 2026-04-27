@@ -89,6 +89,20 @@ go build -o execgo ./cmd/execgo
 EXECGO_ADDR=:9090 EXECGO_MAX_CONCURRENCY=20 ./execgo
 ```
 
+### Adapter CLI (`execgocli`)
+
+For **Claude Code / Codex**-style adoption, build the shared adapter helper (stdlib-only HTTP client):
+
+```bash
+go build -o execgocli ./cmd/execgocli
+export EXECGO_URL=http://127.0.0.1:8080
+./execgocli tools
+```
+
+- English: [Mode A (CLI)](docs/en/integration/mode-a-cli.md) · [JSON contract](docs/en/reference/execgo-cli-contract.md)
+- 中文：[模式 A（CLI）](docs/zh/integration/mode-a-cli.md) · [JSON 契约](docs/zh/reference/execgo-cli-contract.md)
+- **For Codex / Claude Code / agents:** bundled onboarding is under **[`.skill/`](.skill/README.md)** (SOP, JSON, integrations). Cursor 也可读 **[`.cursor/skills/execgocli-adapter/SKILL.md`](.cursor/skills/execgocli-adapter/SKILL.md)**（指向同一套说明）。
+
 ### Submit tasks
 
 Single task:

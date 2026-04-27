@@ -7,6 +7,8 @@ ExecGo now has two supported HTTP integration paths:
 
 The adapter path is intended for mature agents such as Claude Code, Codex, and OpenClaw. It does not parse natural language or private agent protocols. It accepts explicit JSON actions and translates them into the same Task DSL used by the rest of ExecGo.
 
+**Shared CLI:** build `execgocli` from `cmd/execgocli` for the same HTTP flow with a stable JSON envelope — see [Mode A (CLI quick start)](mode-a-cli.md) and the [execgocli JSON contract](../reference/execgo-cli-contract.md). For a **Mode B** path (`translate` + `POST /tasks`), see [Mode B upgrade](mode-b-upgrade.md).
+
 ## Endpoints
 
 | Method | Path | Purpose |

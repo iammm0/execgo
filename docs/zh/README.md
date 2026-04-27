@@ -23,6 +23,8 @@
 
 ### 3) 多语言 HTTP 接入示例（Go/Java/Python）
 - [Integration：成熟 Agent Adapter 接入](./integration/agent-adapter.md)
+- [Integration：模式 A — `execgocli` 快速开始](./integration/mode-a-cli.md)
+- [Integration：模式 B — translate + TaskGraph 升级](./integration/mode-b-upgrade.md)
 - [Integration：HTTP API 入门使用文档](./integration/http-api-getting-started.md)
 - [Integration：Go 示例](./integration/client-go.md)
 - [Integration：Java 示例](./integration/client-java.md)
@@ -30,6 +32,8 @@
 - [Integration：Node.js + TypeScript 示例](./integration/client-nodejs-ts.md)
 
 ### 4) 参考手册（API / Task DSL / 执行器参数等）
+- [Reference：execgocli JSON 契约](./reference/execgo-cli-contract.md)
+- [Reference：推广期安全默认](./reference/promotion-security.md)
 - [Reference：API 端点与错误语义](./reference/api.md)
 - [Reference：Task DSL（任务模型与校验）](./reference/task-dsl.md)
 - [Reference：执行器参数与内置执行器](./reference/executors.md)

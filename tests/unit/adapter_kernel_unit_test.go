@@ -1,18 +1,20 @@
-package adapter
+package unit_test
 
 import (
 	"encoding/json"
 	"strings"
 	"testing"
+
+	"github.com/iammm0/execgo/pkg/adapter"
 )
 
 func TestTranslateShellAliasToOSTask(t *testing.T) {
-	kernel := NewAdapterKernel()
-	resp, err := kernel.Translate(AgentActionRequest{
+	kernel := adapter.NewAdapterKernel()
+	resp, err := kernel.Translate(adapter.AgentActionRequest{
 		Adapter:  "codex",
 		AgentID:  "agent-1",
 		ActionID: "list-files",
-		Action: AgentAction{
+		Action: adapter.AgentAction{
 			Kind:  "shell",
 			Input: json.RawMessage(`{"command":"ls","args":["-la"]}`),
 		},
@@ -36,13 +38,13 @@ func TestTranslateShellAliasToOSTask(t *testing.T) {
 }
 
 func TestTranslateRuntimeCommand(t *testing.T) {
-	kernel := NewAdapterKernel()
-	resp, err := kernel.Translate(AgentActionRequest{
+	kernel := adapter.NewAdapterKernel()
+	resp, err := kernel.Translate(adapter.AgentActionRequest{
 		Adapter:   "codex",
 		AgentID:   "agent-1",
 		SessionID: "session-1",
 		ActionID:  "build-test",
-		Action: AgentAction{
+		Action: adapter.AgentAction{
 			Kind: "runtime.command",
 			Input: json.RawMessage(`{
 				"program":"go",
@@ -94,9 +96,9 @@ func TestTranslateRuntimeCommand(t *testing.T) {
 }
 
 func TestTranslateTaskGraphSubmitPassThrough(t *testing.T) {
-	kernel := NewAdapterKernel()
-	resp, err := kernel.Translate(AgentActionRequest{
-		Action: AgentAction{
+	kernel := adapter.NewAdapterKernel()
+	resp, err := kernel.Translate(adapter.AgentActionRequest{
+		Action: adapter.AgentAction{
 			Kind:  "task_graph.submit",
 			Input: json.RawMessage(`{"tasks":[{"id":"direct","type":"noop","params":{"message":"hi"}}]}`),
 		},
@@ -114,8 +116,8 @@ func TestTranslateTaskGraphSubmitPassThrough(t *testing.T) {
 }
 
 func TestTranslateUnknownKind(t *testing.T) {
-	kernel := NewAdapterKernel()
-	_, err := kernel.Translate(AgentActionRequest{Action: AgentAction{Kind: "not.real"}})
+	kernel := adapter.NewAdapterKernel()
+	_, err := kernel.Translate(adapter.AgentActionRequest{Action: adapter.AgentAction{Kind: "not.real"}})
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -125,9 +127,9 @@ func TestTranslateUnknownKind(t *testing.T) {
 }
 
 func TestTranslateGeneratesTaskID(t *testing.T) {
-	kernel := NewAdapterKernel()
-	resp, err := kernel.Translate(AgentActionRequest{
-		Action: AgentAction{
+	kernel := adapter.NewAdapterKernel()
+	resp, err := kernel.Translate(adapter.AgentActionRequest{
+		Action: adapter.AgentAction{
 			Kind:  "os.noop",
 			Input: json.RawMessage(`{"message":"hi"}`),
 		},
