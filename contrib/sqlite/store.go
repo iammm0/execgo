@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -25,8 +26,9 @@ CREATE TABLE IF NOT EXISTS execgo_tasks (
 
 // Store 将任务以 JSON 行存储于 SQLite / persists tasks as JSON rows.
 type Store struct {
-	db *sql.DB
-	mu sync.Mutex
+	db     *sql.DB
+	mu     sync.Mutex
+	logger *slog.Logger
 }
 
 // 确保实现接口 / compile-time check.
@@ -53,7 +55,7 @@ func Open(path string) (*Store, error) {
 		return nil, fmt.Errorf("sqlite pragma journal_mode: %w", err)
 	}
 
-	return &Store{db: db}, nil
+	return &Store{db: db, logger: slog.Default()}, nil
 }
 
 // Close 关闭数据库 / closes the database.
@@ -68,9 +70,12 @@ func (s *Store) Put(task *models.Task) {
 
 	data, err := json.Marshal(task)
 	if err != nil {
+		s.logger.Error("sqlite put: marshal failed", "task_id", task.ID, "error", err)
 		return
 	}
-	_, _ = s.db.Exec(`INSERT OR REPLACE INTO execgo_tasks (id, payload) VALUES (?, ?)`, task.ID, data)
+	if _, err := s.db.Exec(`INSERT OR REPLACE INTO execgo_tasks (id, payload) VALUES (?, ?)`, task.ID, data); err != nil {
+		s.logger.Error("sqlite put: exec failed", "task_id", task.ID, "error", err)
+	}
 }
 
 // Get 按 id 读取任务 / loads a task by id.

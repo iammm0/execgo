@@ -61,11 +61,11 @@ func main() {
 		}
 		st = jm
 		persistStop = make(chan struct{})
-		jm.StartPeriodicPersist(30*time.Second, persistStop)
+		persistDone := jm.StartPeriodicPersist(30*time.Second, persistStop)
 		defer func() {
 			if persistStop != nil {
 				close(persistStop)
-				time.Sleep(100 * time.Millisecond)
+				<-persistDone
 			}
 			_ = jm.Persist()
 		}()

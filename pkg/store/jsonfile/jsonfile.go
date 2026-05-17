@@ -162,9 +162,11 @@ func (m *Manager) loadFromDisk() error {
 	return nil
 }
 
-// StartPeriodicPersist 启动定期持久化 / starts periodic persistence.
-func (m *Manager) StartPeriodicPersist(interval time.Duration, stop <-chan struct{}) {
+// StartPeriodicPersist 启动定期持久化，返回 done 通道在最终持久化完成后关闭 / starts periodic persistence; the returned channel is closed after the final persist completes.
+func (m *Manager) StartPeriodicPersist(interval time.Duration, stop <-chan struct{}) <-chan struct{} {
+	done := make(chan struct{})
 	go func() {
+		defer close(done)
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
 		for {
@@ -181,4 +183,5 @@ func (m *Manager) StartPeriodicPersist(interval time.Duration, stop <-chan struc
 			}
 		}
 	}()
+	return done
 }

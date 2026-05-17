@@ -2,8 +2,8 @@ go 1.24.5
 
 use (
 	.
-	./contrib/rediscache
 	./contrib/grpcapi
+	./contrib/rediscache
 	./contrib/sqlite
 	./examples/fullserver
 )

@@ -64,7 +64,7 @@ func main() {
 	// Periodically flush in-memory state to storage.
 	// 周期性将内存状态持久化到存储。
 	persistStop := make(chan struct{})
-	sm.StartPeriodicPersist(30*time.Second, persistStop)
+	persistDone := sm.StartPeriodicPersist(30*time.Second, persistStop)
 
 	// Start DAG scheduler with configured maximum concurrency.
 	// 按配置并发上限启动 DAG 调度器。
@@ -136,7 +136,7 @@ func main() {
 	// 进程退出前做一次最终状态落盘。
 	logger.Info("persisting final state...")
 	close(persistStop)
-	time.Sleep(100 * time.Millisecond)
+	<-persistDone
 
 	logger.Info("ExecGo stopped gracefully")
 }
