@@ -376,7 +376,7 @@ func taskInputSchema() map[string]any {
 			"annotations":        stringMapInput("Task annotations for audit and provenance."),
 		},
 		[]string{"id", "type"},
-		false,
+		true,
 		nil,
 	)
 }
@@ -469,6 +469,10 @@ func integerInput(description string, minimum any, maximum any, defaultValue any
 // Translate converts one agent action request into an ExecGo TaskGraph.
 func (k *AdapterKernel) Translate(req AgentActionRequest) (*AgentActionResponse, error) {
 	_ = k
+	if err := k.ValidateActionRequest(req); err != nil {
+		return nil, err
+	}
+
 	rawKind := strings.TrimSpace(req.Action.Kind)
 	kind, err := NormalizeActionKind(rawKind)
 	if err != nil {

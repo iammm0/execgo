@@ -201,6 +201,104 @@ func TestToolManifestExposesMachineReadableInputSchemas(t *testing.T) {
 	}
 }
 
+func TestValidateActionRequestUsesToolInputSchema(t *testing.T) {
+	kernel := adapter.NewAdapterKernel()
+
+	cases := []struct {
+		name    string
+		req     adapter.AgentActionRequest
+		wantErr string
+	}{
+		{
+			name: "file write requires content",
+			req: adapter.AgentActionRequest{Action: adapter.AgentAction{
+				Kind:  "os.file",
+				Input: json.RawMessage(`{"action":"write","path":"/tmp/out.txt"}`),
+			}},
+			wantErr: "content is required",
+		},
+		{
+			name: "file rejects unknown action enum",
+			req: adapter.AgentActionRequest{Action: adapter.AgentAction{
+				Kind:  "os.file",
+				Input: json.RawMessage(`{"action":"copy","path":"/tmp/out.txt"}`),
+			}},
+			wantErr: "must be one of",
+		},
+		{
+			name: "shell requires command or script",
+			req: adapter.AgentActionRequest{Action: adapter.AgentAction{
+				Kind:  "os.shell",
+				Input: json.RawMessage(`{"args":["-la"]}`),
+			}},
+			wantErr: "command is required",
+		},
+		{
+			name: "shell rejects extra property",
+			req: adapter.AgentActionRequest{Action: adapter.AgentAction{
+				Kind:  "os.shell",
+				Input: json.RawMessage(`{"command":"pwd","unexpected":true}`),
+			}},
+			wantErr: "unexpected is not allowed",
+		},
+		{
+			name: "runtime command requires program or execution",
+			req: adapter.AgentActionRequest{Action: adapter.AgentAction{
+				Kind:  "runtime.command",
+				Input: json.RawMessage(`{"args":["test","./..."]}`),
+			}},
+			wantErr: "program is required",
+		},
+		{
+			name: "sleep duration must be integer",
+			req: adapter.AgentActionRequest{Action: adapter.AgentAction{
+				Kind:  "os.sleep",
+				Input: json.RawMessage(`{"duration_ms":1.5}`),
+			}},
+			wantErr: "duration_ms must be integer",
+		},
+		{
+			name: "valid file write",
+			req: adapter.AgentActionRequest{Action: adapter.AgentAction{
+				Kind:  "os.file",
+				Input: json.RawMessage(`{"action":"write","path":"/tmp/out.txt","content":"ok"}`),
+			}},
+		},
+		{
+			name: "valid file read alias gets default action",
+			req: adapter.AgentActionRequest{Action: adapter.AgentAction{
+				Kind:  "file.read",
+				Input: json.RawMessage(`{"path":"/tmp/out.txt"}`),
+			}},
+		},
+		{
+			name: "valid task graph submit",
+			req: adapter.AgentActionRequest{Action: adapter.AgentAction{
+				Kind:  "task_graph.submit",
+				Input: json.RawMessage(`{"tasks":[{"id":"t1","type":"noop","params":{"message":"hi"}}]}`),
+			}},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := kernel.ValidateActionRequest(tc.req)
+			if tc.wantErr == "" {
+				if err != nil {
+					t.Fatalf("ValidateActionRequest error: %v", err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatal("expected validation error")
+			}
+			if !strings.Contains(err.Error(), tc.wantErr) {
+				t.Fatalf("error=%q want substring %q", err.Error(), tc.wantErr)
+			}
+		})
+	}
+}
+
 func requiredTool(t *testing.T, tools map[string]adapter.AgentToolSpec, kind string) adapter.AgentToolSpec {
 	t.Helper()
 	tool, ok := tools[kind]

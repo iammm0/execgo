@@ -109,6 +109,10 @@ func runAct(args []string) {
 		_ = execgocli.WriteError(execgocli.ErrorValue{Message: "read input: " + err.Error()})
 		os.Exit(1)
 	}
+	if err := execgocli.ValidateAdapterActionBody(body); err != nil {
+		_ = execgocli.WriteError(execgocli.ErrorValue{Message: "validate input: " + err.Error()})
+		os.Exit(1)
+	}
 	ctx := context.Background()
 	c := execgocli.NewClient(execgocli.BaseURL())
 	m, b, code, err := c.PostActions(ctx, body)
@@ -126,6 +130,10 @@ func runTranslate(args []string) {
 	body, err := execgocli.ReadInput(*file, os.Stdin)
 	if err != nil {
 		_ = execgocli.WriteError(execgocli.ErrorValue{Message: "read input: " + err.Error()})
+		os.Exit(1)
+	}
+	if err := execgocli.ValidateAdapterActionBody(body); err != nil {
+		_ = execgocli.WriteError(execgocli.ErrorValue{Message: "validate input: " + err.Error()})
 		os.Exit(1)
 	}
 	ctx := context.Background()

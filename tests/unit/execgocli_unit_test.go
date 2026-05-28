@@ -3,6 +3,7 @@ package unit_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -56,5 +57,29 @@ func TestExecgocliClient_CapabilitiesAndActWait(t *testing.T) {
 	}
 	if !wout.AllTerminal {
 		t.Fatalf("expected terminal, got %#v", wout)
+	}
+}
+
+func TestExecgocliValidateAdapterActionBody(t *testing.T) {
+	valid := []byte(`{
+		"adapter":"codex",
+		"action_id":"ok",
+		"action":{"kind":"os.file","input":{"action":"write","path":"/tmp/out.txt","content":"ok"}}
+	}`)
+	if err := execgocli.ValidateAdapterActionBody(valid); err != nil {
+		t.Fatalf("valid body rejected: %v", err)
+	}
+
+	invalid := []byte(`{
+		"adapter":"codex",
+		"action_id":"bad",
+		"action":{"kind":"os.file","input":{"action":"write","path":"/tmp/out.txt"}}
+	}`)
+	err := execgocli.ValidateAdapterActionBody(invalid)
+	if err == nil {
+		t.Fatal("expected validation error")
+	}
+	if !strings.Contains(err.Error(), "content is required") {
+		t.Fatalf("error=%q", err.Error())
 	}
 }

@@ -190,6 +190,41 @@ func TestAdapterHTTPFlow_InvalidActionKind(t *testing.T) {
 	}
 }
 
+func TestAdapterHTTPFlow_InvalidActionInputSchema(t *testing.T) {
+	executor.RegisterBuiltins()
+	rt := testutil.NewRuntime(t, 2)
+	srv := testutil.NewHTTPServer(t, rt)
+
+	body := []byte(`{
+		"adapter":"codex",
+		"action_id":"bad-file-write",
+		"action":{"kind":"os.file","input":{"action":"write","path":"/tmp/out.txt"}}
+	}`)
+	req, err := http.NewRequest(http.MethodPost, srv.URL+"/adapters/actions", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := srv.Client().Do(req)
+	if err != nil {
+		t.Fatalf("POST /adapters/actions error: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status=%d want=%d", resp.StatusCode, http.StatusBadRequest)
+	}
+	var er models.ErrorResponse
+	if err := json.NewDecoder(resp.Body).Decode(&er); err != nil {
+		t.Fatalf("decode error response: %v", err)
+	}
+	if !strings.Contains(er.Error, "content is required") {
+		t.Fatalf("error=%q", er.Error)
+	}
+	if _, ok := rt.Store.Get("bad-file-write"); ok {
+		t.Fatal("invalid adapter action should not be submitted")
+	}
+}
+
 func containsString(items []string, want string) bool {
 	for _, item := range items {
 		if item == want {
