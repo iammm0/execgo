@@ -28,13 +28,22 @@ type Scheduler struct {
 	semaphore  chan struct{}       // 并发信号量 / concurrency semaphore
 	depCount   map[string]int      // 剩余依赖计数 / remaining dependency count
 	dependents map[string][]string // 反向依赖图 / reverse dependency graph
-	mu         sync.Mutex          // 保护 depCount 和 dependents / protects depCount & dependents
+	inFlight   map[string]*inFlightTask
+	mu         sync.Mutex // 保护 depCount 和 dependents / protects depCount & dependents
 
 	wg     sync.WaitGroup
 	cancel context.CancelFunc
 }
 
 const asyncHandlePollInterval = 100 * time.Millisecond
+
+type inFlightTask struct {
+	cancel       context.CancelFunc
+	exec         executor.Executor
+	handle       string
+	started      time.Time
+	cancelResult *executor.Result
+}
 
 // New 创建调度器 / creates a new scheduler.
 func New(st store.Store, metrics *observability.Metrics, logger *slog.Logger, maxConcurrency int) *Scheduler {
@@ -46,6 +55,7 @@ func New(st store.Store, metrics *observability.Metrics, logger *slog.Logger, ma
 		semaphore:  make(chan struct{}, maxConcurrency),
 		depCount:   make(map[string]int),
 		dependents: make(map[string][]string),
+		inFlight:   make(map[string]*inFlightTask),
 	}
 }
 
@@ -131,6 +141,9 @@ func (s *Scheduler) loop(ctx context.Context) {
 
 // executeTask 执行单个任务，含超时和重试 / executes a single task with timeout and retry.
 func (s *Scheduler) executeTask(ctx context.Context, task *models.Task) {
+	if taskStatusIsTerminal(task.Status) {
+		return
+	}
 	logger := s.logger.With("task_id", task.ID, "task_type", task.Type)
 	executor.NormalizeTask(task)
 
@@ -182,6 +195,11 @@ func (s *Scheduler) executeTask(ctx context.Context, task *models.Task) {
 		} else {
 			execCtx, cancelFn = context.WithCancel(ctx)
 		}
+		s.setInFlight(task.ID, &inFlightTask{
+			cancel:  cancelFn,
+			exec:    exec,
+			started: runStartedAt,
+		})
 
 		execResult, lastErr = exec.Execute(execCtx, task)
 		if execResult != nil && execResult.Attempt == 0 {
@@ -193,9 +211,22 @@ func (s *Scheduler) executeTask(ctx context.Context, task *models.Task) {
 		if lastErr == nil && execResult != nil && !execResult.Status.IsTerminal() {
 			execResult, lastErr = s.awaitRuntimeResult(execCtx, exec, execResult, logger, runStartedAt, attempt, task)
 		}
+		if errors.Is(lastErr, context.Canceled) {
+			if res := s.inFlightCancelResult(task.ID); res != nil {
+				if res.Attempt == 0 {
+					res.Attempt = attempt
+				}
+				execResult = res
+				lastErr = runtimeResultError(res)
+			}
+		}
 		cancelFn()
+		s.clearInFlight(task.ID)
 
 		if lastErr == nil {
+			break
+		}
+		if errors.Is(lastErr, context.Canceled) {
 			break
 		}
 		logger.Warn("task attempt failed", "attempt", attempt, "error", lastErr)
@@ -211,6 +242,78 @@ func (s *Scheduler) executeTask(ctx context.Context, task *models.Task) {
 		logger.Info("task completed successfully")
 		s.completeTask(task, models.StatusSuccess, resultOutput(execResult), nil, execResult, runStartedAt, finishedAt, attemptsUsed)
 	}
+}
+
+// Cancel 请求取消一个 pending/running 任务 / requests cancellation for a pending or running task.
+func (s *Scheduler) Cancel(taskID string) (*executor.Result, bool, error) {
+	task, ok := s.state.Get(taskID)
+	if !ok {
+		return nil, false, fmt.Errorf("task not found: %s", taskID)
+	}
+	if taskStatusIsTerminal(task.Status) {
+		return nil, true, nil
+	}
+
+	entry := s.inFlightEntry(taskID)
+	if entry == nil {
+		err := context.Canceled
+		finishedAt := time.Now()
+		res := &executor.Result{
+			TaskID:   task.ID,
+			HandleID: task.HandleID,
+			Status:   models.RuntimeCancelled,
+			Error: &models.RuntimeError{
+				Code:    models.ErrorCancelled,
+				Message: "task cancelled before execution",
+				Source:  "scheduler",
+			},
+		}
+		s.completeTask(task, models.StatusFailed, nil, err, res, time.Time{}, finishedAt, 0)
+		return res, true, nil
+	}
+
+	handle := entry.handle
+	if handle == "" {
+		handle = task.HandleID
+	}
+	if handle == "" && task.Runtime != nil {
+		handle = task.Runtime.HandleID
+	}
+
+	var cancelResult *executor.Result
+	if canceler, ok := entry.exec.(executor.HandleCanceler); ok && handle != "" {
+		if res, found := canceler.CancelHandle(handle); found {
+			cancelResult = res
+		}
+	}
+	if cancelResult == nil {
+		cancelResult = &executor.Result{
+			TaskID:   task.ID,
+			HandleID: handle,
+			Status:   models.RuntimeCancelled,
+			Error: &models.RuntimeError{
+				Code:    models.ErrorCancelled,
+				Message: "task cancelled",
+				Source:  "scheduler",
+			},
+		}
+	}
+	s.setInFlightCancelResult(taskID, cancelResult)
+	if entry.cancel != nil {
+		entry.cancel()
+	}
+	if cancelResult.Attempt == 0 && task.Runtime != nil {
+		cancelResult.Attempt = task.Runtime.Attempt
+	}
+	task.HandleID = handle
+	task.Runtime = buildRuntimeResult(models.StatusFailed, cancelResult, context.Canceled, entry.started, time.Now(), cancelResult.Attempt)
+	task.RunStatus = string(models.RuntimeCancelled)
+	errMsg := "task cancelled"
+	if task.Runtime != nil && task.Runtime.Error != nil && task.Runtime.Error.Message != "" {
+		errMsg = task.Runtime.Error.Message
+	}
+	s.state.UpdateStatus(task.ID, models.StatusFailed, resultOutput(cancelResult), errMsg)
+	return cancelResult, true, nil
 }
 
 // completeTask 完成任务并级联触发下游依赖 / completes a task and cascades to downstream dependents.
@@ -479,10 +582,68 @@ func (s *Scheduler) applyInFlightRuntime(task *models.Task, execResult *executor
 	task.Runtime = runtime
 	task.RunStatus = string(runtime.Status)
 	task.HandleID = runtime.HandleID
+	s.updateInFlightHandle(task.ID, runtime.HandleID)
 	if len(execResult.Progress) > 0 {
 		progress, _ := json.Marshal(execResult.Progress)
 		task.Progress = progress
 	}
+}
+
+func (s *Scheduler) setInFlight(taskID string, entry *inFlightTask) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.inFlight[taskID] = entry
+}
+
+func (s *Scheduler) clearInFlight(taskID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.inFlight, taskID)
+}
+
+func (s *Scheduler) updateInFlightHandle(taskID, handle string) {
+	if handle == "" {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if entry := s.inFlight[taskID]; entry != nil {
+		entry.handle = handle
+	}
+}
+
+func (s *Scheduler) inFlightEntry(taskID string) *inFlightTask {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	entry := s.inFlight[taskID]
+	if entry == nil {
+		return nil
+	}
+	cp := *entry
+	return &cp
+}
+
+func (s *Scheduler) setInFlightCancelResult(taskID string, res *executor.Result) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if entry := s.inFlight[taskID]; entry != nil {
+		entry.cancelResult = res
+	}
+}
+
+func (s *Scheduler) inFlightCancelResult(taskID string) *executor.Result {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	entry := s.inFlight[taskID]
+	if entry == nil || entry.cancelResult == nil {
+		return nil
+	}
+	cp := *entry.cancelResult
+	return &cp
+}
+
+func taskStatusIsTerminal(status models.TaskStatus) bool {
+	return status == models.StatusSuccess || status == models.StatusFailed || status == models.StatusSkipped
 }
 
 type canceledError struct {
@@ -495,4 +656,9 @@ func (e canceledError) Error() string {
 		return e.message
 	}
 	return "task cancelled"
+}
+
+// Is marks scheduler cancellation results as context cancellation so retry logic stops.
+func (e canceledError) Is(target error) bool {
+	return target == context.Canceled
 }

@@ -33,6 +33,8 @@ func main() {
 		runTranslate(os.Args[2:])
 	case "wait":
 		runWait(os.Args[2:])
+	case "cancel":
+		runCancel(os.Args[2:])
 	case "submit":
 		runSubmit(os.Args[2:])
 	case "health":
@@ -62,6 +64,7 @@ func usage() {
   act                POST /adapters/actions（JSON 来自 -file 或 stdin）
   translate          POST /adapters/translate
   wait               轮询 GET /tasks/{id} 至终态
+  cancel             POST /tasks/{id}/cancel，请求取消任务
   submit             POST /tasks（模式 B，直传 TaskGraph JSON）
   health             GET /health
   ensure-running     探活；可选 try docker compose 与 runtime
@@ -71,6 +74,7 @@ func usage() {
   execgocli tools
   echo '{"adapter":"codex","action_id":"a1","action":{"kind":"os.noop","input":{}}}' | execgocli act
   execgocli wait -task-ids a1 -timeout 2m
+  execgocli cancel -task-ids a1
 `
 	fmt.Fprint(os.Stderr, t)
 }
@@ -198,6 +202,37 @@ func runWait(args []string) {
 	if !out.AllTerminal {
 		os.Exit(3)
 	}
+}
+
+func runCancel(args []string) {
+	fs := flag.NewFlagSet("cancel", flag.ExitOnError)
+	ids := fs.String("task-ids", "", "逗号分隔任务 id / comma-separated task ids (required)")
+	timeout := fs.Duration("timeout", 30*time.Second, "最长等待取消请求完成 / max wait for cancel requests")
+	_ = parseCommon(fs, args)
+	if strings.TrimSpace(*ids) == "" {
+		_ = execgocli.WriteError(execgocli.ErrorValue{Message: "missing -task-ids"})
+		os.Exit(2)
+	}
+	parts := strings.Split(*ids, ",")
+	trimmed := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if s := strings.TrimSpace(p); s != "" {
+			trimmed = append(trimmed, s)
+		}
+	}
+	ctx := context.Background()
+	if *timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, *timeout)
+		defer cancel()
+	}
+	c := execgocli.NewClient(execgocli.BaseURL())
+	out, err := execgocli.Cancel(ctx, c, trimmed)
+	if err != nil {
+		_ = execgocli.WriteError(execgocli.ErrorValue{Message: err.Error()})
+		os.Exit(1)
+	}
+	_ = execgocli.WriteOK(out)
 }
 
 func runHealth(args []string) {

@@ -22,9 +22,9 @@ type Client struct {
 // NewClient 使用给定基址与可选 Transport / creates client.
 func NewClient(baseURL string) *Client {
 	return &Client{
-		BaseURL:   baseURL,
-		HTTP:      &http.Client{Timeout: 60 * time.Second},
-		UserAgent: "execgocli/1.0",
+		BaseURL:    baseURL,
+		HTTP:       &http.Client{Timeout: 60 * time.Second},
+		UserAgent:  "execgocli/1.0",
 		Require2xx: true,
 	}
 }
@@ -138,6 +138,16 @@ func (c *Client) PostTasks(ctx context.Context, body []byte) (map[string]any, []
 // GetTask 调用 GET /tasks/{id}
 func (c *Client) GetTask(ctx context.Context, id string) (map[string]any, []byte, int, error) {
 	b, code, err := c.get(ctx, "/tasks/"+id)
+	if err != nil {
+		return nil, b, code, err
+	}
+	m, jerr := JSONDecode(b)
+	return m, b, code, jerr
+}
+
+// PostCancelTask 调用 POST /tasks/{id}/cancel / calls POST /tasks/{id}/cancel.
+func (c *Client) PostCancelTask(ctx context.Context, id string) (map[string]any, []byte, int, error) {
+	b, code, err := c.post(ctx, "/tasks/"+id+"/cancel", nil)
 	if err != nil {
 		return nil, b, code, err
 	}

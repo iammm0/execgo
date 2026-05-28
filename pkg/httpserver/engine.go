@@ -72,6 +72,7 @@ func (e *Engine) routesMux() *http.ServeMux {
 	mux.HandleFunc("GET /mcp/tasks/{id}", e.handleMCPGetTask)
 	mux.HandleFunc("GET /tasks/{id}", e.handleGetTask)
 	mux.HandleFunc("GET /tasks", e.handleListTasks)
+	mux.HandleFunc("POST /tasks/{id}/cancel", e.handleCancelTask)
 	mux.HandleFunc("DELETE /tasks/{id}", e.handleDeleteTask)
 	mux.HandleFunc("GET /health", e.handleHealth)
 	mux.HandleFunc("GET /metrics", e.handleMetrics)
@@ -283,6 +284,25 @@ func (e *Engine) handleListTasks(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, tasks)
 }
 
+func (e *Engine) handleCancelTask(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	result, found, err := e.scheduler.Cancel(id)
+	if !found {
+		writeJSON(w, http.StatusNotFound, models.ErrorResponse{Error: "task not found: " + id})
+		return
+	}
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, models.ErrorResponse{Error: err.Error()})
+		return
+	}
+	task, _ := e.state.Get(id)
+	writeJSON(w, http.StatusAccepted, map[string]any{
+		"task_id": id,
+		"status":  taskStatusString(task),
+		"runtime": runtimePayload(task, result),
+	})
+}
+
 func (e *Engine) handleDeleteTask(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if !e.state.Delete(id) {
@@ -314,4 +334,18 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	json.NewEncoder(w).Encode(v)
+}
+
+func taskStatusString(task *models.Task) string {
+	if task == nil {
+		return ""
+	}
+	return string(task.Status)
+}
+
+func runtimePayload(task *models.Task, result any) any {
+	if task != nil && task.Runtime != nil {
+		return task.Runtime
+	}
+	return result
 }

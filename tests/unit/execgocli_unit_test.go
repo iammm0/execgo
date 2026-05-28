@@ -60,6 +60,40 @@ func TestExecgocliClient_CapabilitiesAndActWait(t *testing.T) {
 	}
 }
 
+func TestExecgocliClient_Cancel(t *testing.T) {
+	executor.RegisterBuiltins()
+	rt := testutil.NewRuntime(t, 1)
+	srv := testutil.NewHTTPServer(t, rt)
+	t.Setenv("EXECGO_URL", srv.URL)
+
+	c := execgocli.NewClient(execgocli.BaseURL())
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	body := []byte(`{
+		"adapter":"codex",
+		"action_id":"cancel-1",
+		"action":{"kind":"os.sleep","input":{"duration_ms":5000}}
+	}`)
+	_, _, _, err := c.PostActions(ctx, body)
+	if err != nil {
+		t.Fatalf("act: %v", err)
+	}
+
+	out, err := execgocli.Cancel(ctx, c, []string{"cancel-1"})
+	if err != nil {
+		t.Fatalf("cancel: %v", err)
+	}
+	if len(out.Tasks) != 1 {
+		t.Fatalf("expected one cancel result, got %#v", out)
+	}
+
+	task := testutil.WaitTaskInStore(t, rt.Store, "cancel-1", 2*time.Second)
+	if task.Runtime == nil || task.Runtime.Status != "cancelled" {
+		t.Fatalf("expected cancelled runtime, got %#v", task.Runtime)
+	}
+}
+
 func TestExecgocliValidateAdapterActionBody(t *testing.T) {
 	valid := []byte(`{
 		"adapter":"codex",

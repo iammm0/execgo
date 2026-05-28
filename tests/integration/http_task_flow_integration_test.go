@@ -4,6 +4,7 @@ package integration_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"testing"
@@ -13,6 +14,76 @@ import (
 	"github.com/iammm0/execgo/pkg/models"
 	"github.com/iammm0/execgo/tests/testutil"
 )
+
+type cancellableHTTPExecutor struct {
+	taskType string
+}
+
+func (e *cancellableHTTPExecutor) Name() string { return e.taskType }
+
+func (e *cancellableHTTPExecutor) Category() string { return "test" }
+
+func (e *cancellableHTTPExecutor) ListTools(ctx context.Context) ([]executor.Tool, error) {
+	return nil, nil
+}
+
+func (e *cancellableHTTPExecutor) HealthCheck() error { return nil }
+
+func (e *cancellableHTTPExecutor) Shutdown(ctx context.Context) error { return nil }
+
+func (e *cancellableHTTPExecutor) Execute(ctx context.Context, task *models.Task) (*executor.Result, error) {
+	_ = task
+	<-ctx.Done()
+	return nil, ctx.Err()
+}
+
+type cancellableRuntimeHTTPExecutor struct {
+	taskType       string
+	cancelledCount int
+}
+
+func (e *cancellableRuntimeHTTPExecutor) Name() string { return e.taskType }
+
+func (e *cancellableRuntimeHTTPExecutor) Category() string { return "test" }
+
+func (e *cancellableRuntimeHTTPExecutor) ListTools(ctx context.Context) ([]executor.Tool, error) {
+	return nil, nil
+}
+
+func (e *cancellableRuntimeHTTPExecutor) HealthCheck() error { return nil }
+
+func (e *cancellableRuntimeHTTPExecutor) Shutdown(ctx context.Context) error { return nil }
+
+func (e *cancellableRuntimeHTTPExecutor) Execute(ctx context.Context, task *models.Task) (*executor.Result, error) {
+	_ = ctx
+	return &executor.Result{
+		TaskID:   task.ID,
+		HandleID: task.ID,
+		Status:   models.RuntimeRunning,
+	}, nil
+}
+
+func (e *cancellableRuntimeHTTPExecutor) GetHandle(handleID string) (*executor.Result, bool) {
+	return &executor.Result{
+		TaskID:   handleID,
+		HandleID: handleID,
+		Status:   models.RuntimeRunning,
+	}, true
+}
+
+func (e *cancellableRuntimeHTTPExecutor) CancelHandle(handleID string) (*executor.Result, bool) {
+	e.cancelledCount++
+	return &executor.Result{
+		TaskID:   handleID,
+		HandleID: handleID,
+		Status:   models.RuntimeCancelled,
+		Error: &models.RuntimeError{
+			Code:    models.ErrorCancelled,
+			Message: "task cancelled",
+			Source:  "test-runtime",
+		},
+	}, true
+}
 
 // TestHTTPTaskFlow_SubmitThenQueryStatus verifies submit->poll flow / 验证提交后轮询查询流程。
 func TestHTTPTaskFlow_SubmitThenQueryStatus(t *testing.T) {
@@ -79,6 +150,108 @@ func TestHTTPTaskFlow_SubmitThenQueryStatus(t *testing.T) {
 	}
 	if len(task.Result) == 0 {
 		t.Fatal("expected legacy result field to remain populated for compatibility")
+	}
+}
+
+func TestHTTPTaskFlow_CancelLocalTask(t *testing.T) {
+	executor.RegisterBuiltins()
+	taskType := "cancel-local-http"
+	executor.Register(&cancellableHTTPExecutor{taskType: taskType})
+	rt := testutil.NewRuntime(t, 1)
+	srv := testutil.NewHTTPServer(t, rt)
+	client := srv.Client()
+
+	submitGraph(t, client, srv.URL, map[string]any{
+		"tasks": []map[string]any{
+			{"id": "local-cancel", "type": taskType},
+		},
+	})
+	waitTaskStatus(t, rt.Store, "local-cancel", models.StatusRunning, 2*time.Second)
+
+	resp, err := client.Post(srv.URL+"/tasks/local-cancel/cancel", "application/json", nil)
+	if err != nil {
+		t.Fatalf("POST /tasks/{id}/cancel error: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusAccepted {
+		t.Fatalf("POST /tasks/{id}/cancel status=%d want=%d", resp.StatusCode, http.StatusAccepted)
+	}
+	var cancelBody struct {
+		Status  string                `json:"status"`
+		Runtime *models.RuntimeResult `json:"runtime"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&cancelBody); err != nil {
+		t.Fatalf("decode cancel response: %v", err)
+	}
+	if cancelBody.Status != string(models.StatusFailed) {
+		t.Fatalf("expected cancel response status=%s, got %s", models.StatusFailed, cancelBody.Status)
+	}
+	if cancelBody.Runtime == nil || cancelBody.Runtime.Status != models.RuntimeCancelled {
+		t.Fatalf("expected cancel response runtime cancelled, got %#v", cancelBody.Runtime)
+	}
+
+	task := testutil.WaitTaskInStore(t, rt.Store, "local-cancel", 2*time.Second)
+	if task.Status != models.StatusFailed {
+		t.Fatalf("expected status=%s, got %s", models.StatusFailed, task.Status)
+	}
+	if task.Runtime == nil || task.Runtime.Status != models.RuntimeCancelled {
+		t.Fatalf("expected runtime cancelled, got %#v", task.Runtime)
+	}
+	if task.Runtime.Error == nil || task.Runtime.Error.Code != models.ErrorCancelled {
+		t.Fatalf("expected cancelled runtime error, got %#v", task.Runtime)
+	}
+}
+
+func TestHTTPTaskFlow_CancelRuntimeHandle(t *testing.T) {
+	executor.RegisterBuiltins()
+	taskType := "cancel-runtime-http"
+	cancelExec := &cancellableRuntimeHTTPExecutor{taskType: taskType}
+	executor.Register(cancelExec)
+	rt := testutil.NewRuntime(t, 1)
+	srv := testutil.NewHTTPServer(t, rt)
+	client := srv.Client()
+
+	submitGraph(t, client, srv.URL, map[string]any{
+		"tasks": []map[string]any{
+			{"id": "runtime-cancel", "type": taskType},
+		},
+	})
+	waitTaskStatus(t, rt.Store, "runtime-cancel", models.StatusRunning, 2*time.Second)
+
+	resp, err := client.Post(srv.URL+"/tasks/runtime-cancel/cancel", "application/json", nil)
+	if err != nil {
+		t.Fatalf("POST /tasks/{id}/cancel error: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusAccepted {
+		t.Fatalf("POST /tasks/{id}/cancel status=%d want=%d", resp.StatusCode, http.StatusAccepted)
+	}
+	var cancelBody struct {
+		Status  string                `json:"status"`
+		Runtime *models.RuntimeResult `json:"runtime"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&cancelBody); err != nil {
+		t.Fatalf("decode cancel response: %v", err)
+	}
+	if cancelBody.Status != string(models.StatusFailed) {
+		t.Fatalf("expected cancel response status=%s, got %s", models.StatusFailed, cancelBody.Status)
+	}
+	if cancelBody.Runtime == nil || cancelBody.Runtime.Status != models.RuntimeCancelled {
+		t.Fatalf("expected cancel response runtime cancelled, got %#v", cancelBody.Runtime)
+	}
+	if cancelExec.cancelledCount != 1 {
+		t.Fatalf("expected CancelHandle once, got %d", cancelExec.cancelledCount)
+	}
+
+	task := testutil.WaitTaskInStore(t, rt.Store, "runtime-cancel", 2*time.Second)
+	if task.Status != models.StatusFailed {
+		t.Fatalf("expected status=%s, got %s", models.StatusFailed, task.Status)
+	}
+	if task.Runtime == nil || task.Runtime.Status != models.RuntimeCancelled {
+		t.Fatalf("expected runtime cancelled, got %#v", task.Runtime)
+	}
+	if task.HandleID != "runtime-cancel" {
+		t.Fatalf("expected handle_id propagated, got %q", task.HandleID)
 	}
 }
 
@@ -155,5 +328,42 @@ func pollTaskByHTTP(t *testing.T, client *http.Client, baseURL, taskID string, t
 		time.Sleep(20 * time.Millisecond)
 	}
 	t.Fatalf("task %s not terminal within %v", taskID, timeout)
+	return nil
+}
+
+func submitGraph(t *testing.T, client *http.Client, baseURL string, payload map[string]any) {
+	t.Helper()
+	body, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("marshal payload: %v", err)
+	}
+	req, err := http.NewRequest(http.MethodPost, baseURL+"/tasks", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("POST /tasks error: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusAccepted {
+		t.Fatalf("POST /tasks status=%d want=%d", resp.StatusCode, http.StatusAccepted)
+	}
+}
+
+func waitTaskStatus(t *testing.T, st interface {
+	Get(string) (*models.Task, bool)
+}, taskID string, status models.TaskStatus, timeout time.Duration) *models.Task {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		task, ok := st.Get(taskID)
+		if ok && task.Status == status {
+			return task
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatalf("task %s did not reach status %s within %v", taskID, status, timeout)
 	return nil
 }

@@ -139,6 +139,72 @@ func (e *asyncHandleExecutor) HealthCheck() error { return nil }
 // Shutdown 无需释放资源 / no-op shutdown.
 func (e *asyncHandleExecutor) Shutdown(ctx context.Context) error { return nil }
 
+type asyncCancelRetryExecutor struct {
+	taskType string
+	attempts atomic.Int32
+	mu       sync.RWMutex
+	handles  map[string]*executor.Result
+}
+
+func (e *asyncCancelRetryExecutor) Name() string { return e.taskType }
+
+func (e *asyncCancelRetryExecutor) Category() string { return "test" }
+
+func (e *asyncCancelRetryExecutor) Execute(ctx context.Context, task *models.Task) (*executor.Result, error) {
+	_ = ctx
+	e.attempts.Add(1)
+	handleID := "handle-" + task.ID
+	res := &executor.Result{
+		TaskID:   task.ID,
+		Status:   models.RuntimeRunning,
+		HandleID: handleID,
+	}
+	e.mu.Lock()
+	e.handles[handleID] = res
+	e.mu.Unlock()
+	return res, nil
+}
+
+func (e *asyncCancelRetryExecutor) GetHandle(handleID string) (*executor.Result, bool) {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	res, ok := e.handles[handleID]
+	if !ok {
+		return nil, false
+	}
+	cp := *res
+	return &cp, true
+}
+
+func (e *asyncCancelRetryExecutor) CancelHandle(handleID string) (*executor.Result, bool) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	res, ok := e.handles[handleID]
+	if !ok {
+		return nil, false
+	}
+	cancelled := &executor.Result{
+		TaskID:   res.TaskID,
+		Status:   models.RuntimeCancelled,
+		HandleID: handleID,
+		Error: &models.RuntimeError{
+			Code:    models.ErrorCancelled,
+			Message: "task cancelled",
+			Source:  "test",
+		},
+	}
+	e.handles[handleID] = cancelled
+	return cancelled, true
+}
+
+func (e *asyncCancelRetryExecutor) ListTools(ctx context.Context) ([]executor.Tool, error) {
+	return nil, nil
+}
+
+func (e *asyncCancelRetryExecutor) HealthCheck() error { return nil }
+
+func (e *asyncCancelRetryExecutor) Shutdown(ctx context.Context) error { return nil }
+
 // TestScheduler_RetryThenSuccess verifies retry then success / 验证重试后成功。
 func TestScheduler_RetryThenSuccess(t *testing.T) {
 	rt := testutil.NewRuntime(t, 2)
@@ -258,5 +324,43 @@ func TestScheduler_AsyncHandleBlocksDependentsUntilTerminal(t *testing.T) {
 	}
 	if child.Status != models.StatusSuccess {
 		t.Fatalf("expected child success after async parent terminal, got %s", child.Status)
+	}
+}
+
+// TestScheduler_CancelledAsyncTaskDoesNotRetry verifies cancellation stops retry attempts / 验证取消不会触发重试。
+func TestScheduler_CancelledAsyncTaskDoesNotRetry(t *testing.T) {
+	rt := testutil.NewRuntime(t, 1)
+
+	taskType := fmt.Sprintf("cancel-retry-%d", time.Now().UnixNano())
+	cancelExec := &asyncCancelRetryExecutor{
+		taskType: taskType,
+		handles:  make(map[string]*executor.Result),
+	}
+	executor.Register(cancelExec)
+
+	rt.Scheduler.Submit(&models.TaskGraph{
+		Tasks: []*models.Task{
+			{ID: "cancel-retry-task", Type: taskType, Retry: 2},
+		},
+	})
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if task, ok := rt.Store.Get("cancel-retry-task"); ok && task.HandleID != "" {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	if _, found, err := rt.Scheduler.Cancel("cancel-retry-task"); !found || err != nil {
+		t.Fatalf("cancel found=%v err=%v", found, err)
+	}
+
+	task := testutil.WaitTaskInStore(t, rt.Store, "cancel-retry-task", 4*time.Second)
+	if task.Runtime == nil || task.Runtime.Status != models.RuntimeCancelled {
+		t.Fatalf("expected runtime cancelled, got %#v", task.Runtime)
+	}
+	if got := cancelExec.attempts.Load(); got != 1 {
+		t.Fatalf("expected cancellation to stop retries after 1 attempt, got %d", got)
 	}
 }
