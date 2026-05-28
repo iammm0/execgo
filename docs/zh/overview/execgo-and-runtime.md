@@ -4,10 +4,12 @@
 
 ## 一句话总结
 
-- **ExecGo（本仓库）**：面向 Agent 的**控制面/编排内核**，负责接收任务图、调度、状态与可观测性，并把任务交给 executor 执行。
+- **ExecGo（本仓库）**：面向通用 Agent 的**可靠执行层/控制面**，负责接收结构化 action 或任务图、调度、状态、取消与可观测性，并把任务交给 executor 执行。
 - **execgo-runtime（独立仓库）**：面向执行的**数据面/运行时**，负责进程级执行、资源与（Linux-only）sandbox 策略、任务目录与结果持久化，对外暴露运行时 API。
 
 二者通过 ExecGo 的 **`runtime` executor** 以 HTTP 对接：ExecGo 把 `type=runtime` 的任务提交到 `execgo-runtime`，并轮询/取消其执行结果。
+
+典型落点是 Claude Code、Codex、Hermes Agent、OpenClaw 这类已经具备规划能力的 agent：它们继续决定“做什么”，ExecGo 与 runtime 负责让“真实执行”具备可验证、可取消、可审计、可恢复的工程语义。
 
 ## 两个项目各自负责什么
 
@@ -57,4 +59,3 @@
 - **不是强依赖**：ExecGo 可以独立运行；只有你使用 `type=runtime`（或 adapter 里选择 `runtime.command/runtime.script`）时才需要 `execgo-runtime`。
 - **API 版本对齐**：ExecGo 的 `runtime` executor 依赖 `execgo-runtime` 的 HTTP 契约；升级任一侧时，需确认 `/api/v1/tasks` 请求/响应字段兼容。
 - **平台差异**：更强的 sandbox/cgroup 能力是 Linux-only；macOS 侧能力以 runtime 实现为准。
-

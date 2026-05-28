@@ -1,11 +1,13 @@
-# 成熟 Agent Adapter 接入
+# 通用 Agent 可靠执行层接入
 
 ExecGo 现在有两条 HTTP 接入路径：
 
 - 低层路径：把完整 `TaskGraph` 直接提交到 `POST /tasks`。
 - 成熟 agent 路径：先用 `GET /adapters/tools` 发现能力，再把结构化 action 提交到 `POST /adapters/actions`。
 
-Adapter 路径面向 Claude Code / Codex / OpenClaw 这类成熟 agent。它不解析自然语言，也不绑定这些 agent 的私有内部协议；它只接受显式 JSON action，并由伴生 `AdapterKernel` 确定性翻译成 ExecGo 已有的 Task DSL。
+Adapter 路径面向 Claude Code / Codex / Hermes Agent / OpenClaw 这类通用或成熟 agent。它不解析自然语言，也不绑定这些 agent 的私有内部协议；它只接受显式 JSON action，并由伴生 `AdapterKernel` 确定性翻译成 ExecGo 已有的 Task DSL。
+
+推荐的边界是：agent 负责上下文理解、计划拆解和工具选择；ExecGo 负责执行前校验、依赖调度、重试/超时/取消、状态持久化与审计。这样可以把临时 shell、文件操作、runtime 命令或 MCP/CLI 调用，从“聊天上下文里的动作”变成可追踪的工程任务。
 
 **通用 CLI：** 在仓库内构建 `execgocli`（`cmd/execgocli`）即可用稳定 JSON 外壳走同一套 HTTP 流程，见 [模式 A 快速开始（CLI）](mode-a-cli.md) 与 [execgocli JSON 契约](../reference/execgo-cli-contract.md)。**模式 B**（`translate` + `POST /tasks`）见 [模式 B 升级路径](mode-b-upgrade.md)。
 

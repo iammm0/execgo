@@ -4,10 +4,12 @@ This page clarifies a common question: **what is the relationship between ExecGo
 
 ## TL;DR
 
-- **ExecGo (this repository)** is the **control plane / orchestration kernel** for agent actions: it accepts `TaskGraph`, schedules DAG execution, manages state, and exposes observability.
+- **ExecGo (this repository)** is the **reliable execution layer / control plane** for general-purpose agent actions: it accepts structured actions or `TaskGraph`, schedules DAG execution, manages state, cancellation, and observability.
 - **execgo-runtime (separate repository)** is the **data plane / execution runtime**: it runs tasks as child processes with resource/sandbox policy (stronger on Linux), and persists execution artifacts and results.
 
 They integrate via ExecGo’s **`runtime` executor** over HTTP: ExecGo submits `type=runtime` tasks to `execgo-runtime`, then polls/cancels them through the runtime API.
+
+The target adoption path is mature agents such as Claude Code, Codex, Hermes Agent, and OpenClaw: the agent keeps deciding what to do, while ExecGo and runtime make the real execution validated, cancellable, auditable, and recoverable.
 
 ## Responsibilities
 
@@ -57,4 +59,3 @@ Typical reasons you **don’t** need it:
 - **Optional dependency**: ExecGo runs standalone; `execgo-runtime` is only required when you submit `type=runtime` tasks (or use `runtime.command/runtime.script` via the adapter).
 - **API compatibility**: the runtime executor depends on the runtime HTTP contract; verify `/api/v1/tasks` compatibility when upgrading either side.
 - **Platform differences**: stronger sandbox/cgroup capabilities are Linux-only.
-

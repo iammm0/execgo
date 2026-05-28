@@ -1,11 +1,13 @@
-# Mature Agent Adapter Integration
+# Reliable Execution Layer for General-Purpose Agents
 
 ExecGo now has two supported HTTP integration paths:
 
 - Low-level path: submit a complete `TaskGraph` to `POST /tasks`.
 - Mature-agent path: discover tools with `GET /adapters/tools`, then submit structured actions to `POST /adapters/actions`.
 
-The adapter path is intended for mature agents such as Claude Code, Codex, and OpenClaw. It does not parse natural language or private agent protocols. It accepts explicit JSON actions and translates them into the same Task DSL used by the rest of ExecGo.
+The adapter path is intended for general-purpose or mature agents such as Claude Code, Codex, Hermes Agent, and OpenClaw. It does not parse natural language or private agent protocols. It accepts explicit JSON actions and translates them into the same Task DSL used by the rest of ExecGo.
+
+The recommended boundary is simple: the agent owns context understanding, planning, and tool selection; ExecGo owns pre-execution validation, dependency scheduling, retry/timeout/cancel semantics, state persistence, and auditability. This turns temporary shell commands, file actions, runtime jobs, or MCP/CLI calls into traceable engineering tasks.
 
 **Shared CLI:** build `execgocli` from `cmd/execgocli` for the same HTTP flow with a stable JSON envelope — see [Mode A (CLI quick start)](mode-a-cli.md) and the [execgocli JSON contract](../reference/execgo-cli-contract.md). For a **Mode B** path (`translate` + `POST /tasks`), see [Mode B upgrade](mode-b-upgrade.md).
 

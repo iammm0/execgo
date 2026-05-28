@@ -16,7 +16,13 @@
 
 **Positioning**
 
-ExecGo is best understood as an agent-first execution kernel / action harness (not a generic workflow engine). It maps agent decisions into real tools and environments in a reliable, secure, and observable way.
+ExecGo is best understood as a reliable execution layer for general-purpose and mature agents, not as another full agent framework or a generic workflow engine. Agents such as Claude Code, Codex, Hermes Agent, and OpenClaw can keep their own planning loop, context handling, and tool-selection UX while ExecGo turns the chosen actions into validated, cancellable, observable, and recoverable tasks.
+
+In practice, ExecGo sits between an agent and the real world:
+
+- the agent decides what should happen;
+- ExecGo validates the action contract, schedules dependencies, applies retry/timeout/cancel semantics, and stores state;
+- optional `execgo-runtime` runs process-heavy work behind a dedicated data-plane runtime with artifacts and resource policy.
 
 ## Key Features
 
@@ -64,7 +70,7 @@ ExecGo is best understood as an agent-first execution kernel / action harness (n
 
 ### ExecGo vs execgo-runtime
 
-- ExecGo is the **control plane / orchestration layer**: it accepts `TaskGraph`, schedules DAG execution, applies `retry/timeout` semantics, stores task state, and provides observability.
+- ExecGo is the **control plane / execution layer** for agent actions: it accepts `TaskGraph` or structured adapter actions, schedules DAG execution, applies `retry/timeout/cancel` semantics, stores task state, and provides observability.
 - `execgo-runtime` is the **data plane / execution runtime** (separate project): it executes processes with resource/sandbox policy and persists artifacts/results.  
   ExecGo integrates with it via the built-in `runtime` executor over HTTP (submit/poll/kill) for `type=runtime` tasks. If you don’t use runtime tasks, you don’t need to deploy `execgo-runtime`.
 
@@ -91,7 +97,7 @@ EXECGO_ADDR=:9090 EXECGO_MAX_CONCURRENCY=20 ./execgo
 
 ### Adapter CLI (`execgocli`)
 
-For **Claude Code / Codex**-style adoption, build the shared adapter helper (stdlib-only HTTP client):
+For **Claude Code / Codex / Hermes Agent / OpenClaw**-style adoption, build the shared adapter helper (stdlib-only HTTP client):
 
 ```bash
 go build -o execgocli ./cmd/execgocli
