@@ -127,7 +127,7 @@ func TestHealthEndpoint_ReturnsReleasedVersion(t *testing.T) {
 	if err := json.NewDecoder(resp.Body).Decode(&health); err != nil {
 		t.Fatalf("decode health response: %v", err)
 	}
-	if health.Version != "v1.0.0" {
-		t.Fatalf("version=%q want=%q", health.Version, "v1.0.0")
+	if health.Version != "v1.1.0" {
+		t.Fatalf("version=%q want=%q", health.Version, "v1.1.0")
 	}
 }

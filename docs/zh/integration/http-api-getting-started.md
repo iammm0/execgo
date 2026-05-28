@@ -100,7 +100,7 @@ HTTP/1.1 200 OK
 Content-Type: application/json
 X-Trace-Id: 33216a3e5682498b
 
-{"status":"ok","version":"v1.0.0","uptime":"9s"}
+{"status":"ok","version":"v1.1.0","uptime":"9s"}
 ```
 
 ### 4.2 提交第一个任务

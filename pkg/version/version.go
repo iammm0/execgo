@@ -3,4 +3,4 @@
 package version
 
 // Current 是 ExecGo 的发布版本号 / the released ExecGo version.
-const Current = "v1.0.0"
+const Current = "v1.1.0"

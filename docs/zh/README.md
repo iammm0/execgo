@@ -45,6 +45,7 @@
 - [FAQ：使用者疑惑导览](./faqs.md)
 
 ### 6) 发布说明（Release Notes）
+- [v1.1.0 发布说明](./releases/v1.1.0.md)
 - [v1.0.0 发布说明](./releases/v1.0.0.md)
 
 ## 版本与兼容性
