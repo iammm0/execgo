@@ -90,6 +90,7 @@ type Metrics struct {
 	TasksRunning   atomic.Int64
 	TasksSucceeded atomic.Int64
 	TasksFailed    atomic.Int64
+	TasksCancelled atomic.Int64
 
 	mu     sync.RWMutex
 	ByType map[string]*atomic.Int64

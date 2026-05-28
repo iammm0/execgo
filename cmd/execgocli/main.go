@@ -64,7 +64,7 @@ func usage() {
   act                POST /adapters/actions（JSON 来自 -file 或 stdin）
   translate          POST /adapters/translate
   wait               轮询 GET /tasks/{id} 至终态
-  cancel             POST /tasks/{id}/cancel，请求取消任务
+  cancel             POST /tasks/{id}/cancel，请求取消任务；可加 --wait 等终态
   submit             POST /tasks（模式 B，直传 TaskGraph JSON）
   health             GET /health
   ensure-running     探活；可选 try docker compose 与 runtime
@@ -74,7 +74,7 @@ func usage() {
   execgocli tools
   echo '{"adapter":"codex","action_id":"a1","action":{"kind":"os.noop","input":{}}}' | execgocli act
   execgocli wait -task-ids a1 -timeout 2m
-  execgocli cancel -task-ids a1
+  execgocli cancel -task-ids a1 --wait
 `
 	fmt.Fprint(os.Stderr, t)
 }
@@ -208,6 +208,8 @@ func runCancel(args []string) {
 	fs := flag.NewFlagSet("cancel", flag.ExitOnError)
 	ids := fs.String("task-ids", "", "逗号分隔任务 id / comma-separated task ids (required)")
 	timeout := fs.Duration("timeout", 30*time.Second, "最长等待取消请求完成 / max wait for cancel requests")
+	interval := fs.Duration("interval", 500*time.Millisecond, "启用 --wait 时的轮询间隔 / poll interval when --wait is enabled")
+	wait := fs.Bool("wait", false, "取消后等待任务进入终态 / wait until cancelled tasks reach terminal state")
 	_ = parseCommon(fs, args)
 	if strings.TrimSpace(*ids) == "" {
 		_ = execgocli.WriteError(execgocli.ErrorValue{Message: "missing -task-ids"})
@@ -227,12 +229,21 @@ func runCancel(args []string) {
 		defer cancel()
 	}
 	c := execgocli.NewClient(execgocli.BaseURL())
-	out, err := execgocli.Cancel(ctx, c, trimmed)
+	var out *execgocli.CancelResult
+	var err error
+	if *wait {
+		out, err = execgocli.CancelAndWait(ctx, c, trimmed, *interval)
+	} else {
+		out, err = execgocli.Cancel(ctx, c, trimmed)
+	}
 	if err != nil {
 		_ = execgocli.WriteError(execgocli.ErrorValue{Message: err.Error()})
 		os.Exit(1)
 	}
 	_ = execgocli.WriteOK(out)
+	if *wait && !out.AllTerminal {
+		os.Exit(3)
+	}
 }
 
 func runHealth(args []string) {

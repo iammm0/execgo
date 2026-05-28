@@ -64,7 +64,7 @@ func WaitTaskInStore(t *testing.T, st store.Store, taskID string, timeout time.D
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
 		task, ok := st.Get(taskID)
-		if ok && (task.Status == models.StatusSuccess || task.Status == models.StatusFailed || task.Status == models.StatusSkipped) {
+		if ok && task.Status.IsTerminal() {
 			return task
 		}
 		time.Sleep(20 * time.Millisecond)

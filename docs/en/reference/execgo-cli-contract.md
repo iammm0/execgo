@@ -50,6 +50,7 @@ Every subcommand writes **one JSON object** to stdout.
 | `translate` | POST | `/adapters/translate` | Translate only, no execution |
 | `submit` | POST | `/tasks` | Mode B: direct `TaskGraph` |
 | `wait` | GET | `/tasks/{id}` (poll) | See below |
+| `cancel` | POST | `/tasks/{id}/cancel` | Requests cancellation; `--wait` polls until terminal |
 | `health` | GET | `/health` | Liveness |
 | `ensure-running` | (local) | n/a | Probes; optional `docker compose` for ExecGo, optional `docker run` for runtime |
 
@@ -63,7 +64,28 @@ Every subcommand writes **one JSON object** to stdout.
 }
 ```
 
-`all_terminal` is true when every task status is one of: `success`, `failed`, `skipped`.
+`all_terminal` is true when every task status is one of: `success`, `failed`, `cancelled`, `skipped`.
+
+## `cancel` `data` shape
+
+Without `--wait`, `cancel` returns the immediate `POST /tasks/{id}/cancel` responses. A running task enters `cancelling` first, then reaches terminal `cancelled` after the executor or runtime handle finishes shutting down.
+
+```json
+{
+  "tasks": [
+    {
+      "task_id": "a1",
+      "status": "cancelling",
+      "runtime": { "status": "cancelling", "error": { "code": "cancelled" } },
+      "event": { "type": "task_cancel_requested", "task_id": "a1" }
+    }
+  ]
+}
+```
+
+With `--wait`, `data.wait` contains the same shape as the `wait` command and `data.all_terminal` mirrors `data.wait.all_terminal`.
+
+Use `cancel` for execution control. `DELETE /tasks/{id}` is state cleanup and does not guarantee process/runtime termination. Runtime-backed tasks map ExecGo cancel to the executor handle cancel path, which calls `execgo-runtime` `POST /api/v1/tasks/{ref}/kill`.
 
 **Exit codes:** `0` success; `1` I/O or HTTP error; `2` usage; `3` `wait` timeout without all terminal; `4` `ensure-running` ExecGo unreachable; `5` `ensure-running` with `--with-runtime` but runtime unreachable.
 

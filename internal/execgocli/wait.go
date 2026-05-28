@@ -22,7 +22,7 @@ type WaitResult struct {
 
 func isTerminalStatus(s string) bool {
 	switch strings.ToLower(strings.TrimSpace(s)) {
-	case "success", "failed", "skipped":
+	case "success", "failed", "cancelled", "skipped":
 		return true
 	default:
 		return false

@@ -10,11 +10,12 @@ type RuntimeStatus string
 
 // RuntimeStatus 常量集合 / RuntimeStatus values.
 const (
-	RuntimeAccepted  RuntimeStatus = "accepted"
-	RuntimeRunning   RuntimeStatus = "running"
-	RuntimeSuccess   RuntimeStatus = "success"
-	RuntimeFailed    RuntimeStatus = "failed"
-	RuntimeCancelled RuntimeStatus = "cancelled"
+	RuntimeAccepted   RuntimeStatus = "accepted"
+	RuntimeRunning    RuntimeStatus = "running"
+	RuntimeCancelling RuntimeStatus = "cancelling"
+	RuntimeSuccess    RuntimeStatus = "success"
+	RuntimeFailed     RuntimeStatus = "failed"
+	RuntimeCancelled  RuntimeStatus = "cancelled"
 )
 
 // IsTerminal 判断 runtime 状态是否已经结束 / reports whether the runtime state is terminal.
@@ -76,14 +77,15 @@ type RuntimeEventType string
 
 // RuntimeEventType 常量集合 / RuntimeEventType values.
 const (
-	RuntimeEventSubmitted RuntimeEventType = "task_submitted"
-	RuntimeEventAccepted  RuntimeEventType = "task_accepted"
-	RuntimeEventStarted   RuntimeEventType = "task_started"
-	RuntimeEventProgress  RuntimeEventType = "task_progressed"
-	RuntimeEventRetried   RuntimeEventType = "task_retried"
-	RuntimeEventSucceeded RuntimeEventType = "task_succeeded"
-	RuntimeEventFailed    RuntimeEventType = "task_failed"
-	RuntimeEventCancelled RuntimeEventType = "task_cancelled"
+	RuntimeEventSubmitted       RuntimeEventType = "task_submitted"
+	RuntimeEventAccepted        RuntimeEventType = "task_accepted"
+	RuntimeEventStarted         RuntimeEventType = "task_started"
+	RuntimeEventProgress        RuntimeEventType = "task_progressed"
+	RuntimeEventRetried         RuntimeEventType = "task_retried"
+	RuntimeEventCancelRequested RuntimeEventType = "task_cancel_requested"
+	RuntimeEventSucceeded       RuntimeEventType = "task_succeeded"
+	RuntimeEventFailed          RuntimeEventType = "task_failed"
+	RuntimeEventCancelled       RuntimeEventType = "task_cancelled"
 )
 
 // RuntimeEvent 是执行生命周期流式输出或审计使用的标准事件模型 / is the normalized event model for execution lifecycle streaming or audit.

@@ -80,15 +80,21 @@ func TestExecgocliClient_Cancel(t *testing.T) {
 		t.Fatalf("act: %v", err)
 	}
 
-	out, err := execgocli.Cancel(ctx, c, []string{"cancel-1"})
+	out, err := execgocli.CancelAndWait(ctx, c, []string{"cancel-1"}, 20*time.Millisecond)
 	if err != nil {
 		t.Fatalf("cancel: %v", err)
 	}
 	if len(out.Tasks) != 1 {
 		t.Fatalf("expected one cancel result, got %#v", out)
 	}
+	if !out.AllTerminal || out.Wait == nil {
+		t.Fatalf("expected cancel --wait style terminal result, got %#v", out)
+	}
 
 	task := testutil.WaitTaskInStore(t, rt.Store, "cancel-1", 2*time.Second)
+	if task.Status != "cancelled" {
+		t.Fatalf("expected cancelled task status, got %s", task.Status)
+	}
 	if task.Runtime == nil || task.Runtime.Status != "cancelled" {
 		t.Fatalf("expected cancelled runtime, got %#v", task.Runtime)
 	}

@@ -43,6 +43,7 @@
 | `translate` | POST | `/adapters/translate` | 仅翻译 |
 | `submit` | POST | `/tasks` | 模式 B：直传 TaskGraph |
 | `wait` | GET | `/tasks/{id}` 轮询 | 见下 |
+| `cancel` | POST | `/tasks/{id}/cancel` | 请求取消任务；可用 `--wait` 等终态 |
 | `health` | GET | `/health` | 探活 |
 | `ensure-running` | （本地） | 无 | 探活/可选 docker |
 
@@ -56,7 +57,28 @@
 }
 ```
 
-`all_terminal`：全部任务为 `success` / `failed` / `skipped` 之一时为 `true`。
+`all_terminal`：全部任务为 `success` / `failed` / `cancelled` / `skipped` 之一时为 `true`。
+
+## `cancel` 的 `data` 形状
+
+不加 `--wait` 时，`cancel` 返回 `POST /tasks/{id}/cancel` 的即时响应。运行中的任务会先进入 `cancelling`，等本地 executor 或 runtime handle 完成中止后，再进入终态 `cancelled`。
+
+```json
+{
+  "tasks": [
+    {
+      "task_id": "a1",
+      "status": "cancelling",
+      "runtime": { "status": "cancelling", "error": { "code": "cancelled" } },
+      "event": { "type": "task_cancel_requested", "task_id": "a1" }
+    }
+  ]
+}
+```
+
+加 `--wait` 时，`data.wait` 与 `wait` 子命令结构一致，`data.all_terminal` 与 `data.wait.all_terminal` 对齐。
+
+执行控制请使用 `cancel`。`DELETE /tasks/{id}` 只表示状态清理，不保证终止进程或 runtime 任务。runtime 类型任务会把 ExecGo cancel 映射到 executor 的 handle cancel 路径，并调用 `execgo-runtime` 的 `POST /api/v1/tasks/{ref}/kill`。
 
 **退出码**：`0` 成功；`1` 错误；`2` 用法；`3` `wait` 未在时限内终态；`4` `ensure-running` 无法连上 ExecGo；`5` 带 `--with-runtime` 时 runtime 仍不可用。
 

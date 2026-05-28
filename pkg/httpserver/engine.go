@@ -296,10 +296,15 @@ func (e *Engine) handleCancelTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	task, _ := e.state.Get(id)
-	writeJSON(w, http.StatusAccepted, map[string]any{
-		"task_id": id,
-		"status":  taskStatusString(task),
-		"runtime": runtimePayload(task, result),
+	var event *models.RuntimeEvent
+	if task != nil && len(task.Events) > 0 {
+		event = &task.Events[len(task.Events)-1]
+	}
+	writeJSON(w, http.StatusAccepted, models.CancelTaskResponse{
+		TaskID:  id,
+		Status:  taskStatusValue(task),
+		Runtime: runtimePayload(task, result),
+		Event:   event,
 	})
 }
 
@@ -326,6 +331,7 @@ func (e *Engine) handleMetrics(w http.ResponseWriter, r *http.Request) {
 		TasksRunning:   e.metrics.TasksRunning.Load(),
 		TasksSucceeded: e.metrics.TasksSucceeded.Load(),
 		TasksFailed:    e.metrics.TasksFailed.Load(),
+		TasksCancelled: e.metrics.TasksCancelled.Load(),
 		ByType:         e.metrics.Snapshot(),
 	})
 }
@@ -336,16 +342,23 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	json.NewEncoder(w).Encode(v)
 }
 
-func taskStatusString(task *models.Task) string {
+func taskStatusValue(task *models.Task) models.TaskStatus {
 	if task == nil {
 		return ""
 	}
-	return string(task.Status)
+	return task.Status
 }
 
-func runtimePayload(task *models.Task, result any) any {
+func runtimePayload(task *models.Task, result *executor.Result) *models.RuntimeResult {
 	if task != nil && task.Runtime != nil {
 		return task.Runtime
 	}
-	return result
+	if result == nil {
+		return nil
+	}
+	return &models.RuntimeResult{
+		Status:   result.Status,
+		HandleID: result.HandleID,
+		Error:    result.Error,
+	}
 }

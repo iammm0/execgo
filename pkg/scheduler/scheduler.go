@@ -237,7 +237,11 @@ func (s *Scheduler) executeTask(ctx context.Context, task *models.Task) {
 
 	if lastErr != nil {
 		logger.Error("task failed after all retries", "error", lastErr)
-		s.completeTask(task, models.StatusFailed, resultOutput(execResult), lastErr, execResult, runStartedAt, finishedAt, attemptsUsed)
+		status := models.StatusFailed
+		if errors.Is(lastErr, context.Canceled) {
+			status = models.StatusCancelled
+		}
+		s.completeTask(task, status, resultOutput(execResult), lastErr, execResult, runStartedAt, finishedAt, attemptsUsed)
 	} else {
 		logger.Info("task completed successfully")
 		s.completeTask(task, models.StatusSuccess, resultOutput(execResult), nil, execResult, runStartedAt, finishedAt, attemptsUsed)
@@ -268,7 +272,14 @@ func (s *Scheduler) Cancel(taskID string) (*executor.Result, bool, error) {
 				Source:  "scheduler",
 			},
 		}
-		s.completeTask(task, models.StatusFailed, nil, err, res, time.Time{}, finishedAt, 0)
+		s.appendTaskEvent(task, models.RuntimeEvent{
+			Type:      models.RuntimeEventCancelled,
+			TaskID:    task.ID,
+			HandleID:  task.HandleID,
+			Timestamp: finishedAt,
+			Message:   "task cancelled before execution",
+		})
+		s.completeTask(task, models.StatusCancelled, nil, err, res, time.Time{}, finishedAt, 0)
 		return res, true, nil
 	}
 
@@ -305,14 +316,28 @@ func (s *Scheduler) Cancel(taskID string) (*executor.Result, bool, error) {
 	if cancelResult.Attempt == 0 && task.Runtime != nil {
 		cancelResult.Attempt = task.Runtime.Attempt
 	}
+	now := time.Now()
+	cancelEvent := models.RuntimeEvent{
+		Type:      models.RuntimeEventCancelRequested,
+		TaskID:    task.ID,
+		HandleID:  handle,
+		Timestamp: now,
+		Message:   "task cancellation requested",
+		Data: map[string]any{
+			"source":       "scheduler",
+			"runtime_kind": entry.exec.Name(),
+		},
+	}
+	s.appendTaskEvent(task, cancelEvent)
 	task.HandleID = handle
-	task.Runtime = buildRuntimeResult(models.StatusFailed, cancelResult, context.Canceled, entry.started, time.Now(), cancelResult.Attempt)
-	task.RunStatus = string(models.RuntimeCancelled)
-	errMsg := "task cancelled"
+	task.Runtime = buildRuntimeResult(models.StatusCancelling, cancelResult, nil, entry.started, time.Time{}, cancelResult.Attempt)
+	task.Runtime.Status = models.RuntimeCancelling
+	task.RunStatus = string(models.RuntimeCancelling)
+	errMsg := "task cancellation requested"
 	if task.Runtime != nil && task.Runtime.Error != nil && task.Runtime.Error.Message != "" {
 		errMsg = task.Runtime.Error.Message
 	}
-	s.state.UpdateStatus(task.ID, models.StatusFailed, resultOutput(cancelResult), errMsg)
+	s.state.UpdateStatus(task.ID, models.StatusCancelling, resultOutput(cancelResult), errMsg)
 	return cancelResult, true, nil
 }
 
@@ -334,11 +359,15 @@ func (s *Scheduler) completeTask(task *models.Task, status models.TaskStatus, re
 			task.Progress = progress
 		}
 	}
+	s.appendTaskEvent(task, terminalTaskEvent(task, status, runtime, finishedAt))
 	s.state.UpdateStatus(task.ID, status, result, errMsg)
 
-	if status == models.StatusSuccess {
+	switch status {
+	case models.StatusSuccess:
 		s.metrics.TasksSucceeded.Add(1)
-	} else {
+	case models.StatusCancelled:
+		s.metrics.TasksCancelled.Add(1)
+	default:
 		s.metrics.TasksFailed.Add(1)
 	}
 
@@ -347,13 +376,17 @@ func (s *Scheduler) completeTask(task *models.Task, status models.TaskStatus, re
 
 	children := s.dependents[task.ID]
 	for _, childID := range children {
-		if status == models.StatusFailed {
-			// 依赖失败 → 跳过下游 / dependency failed → skip downstream
+		if status == models.StatusFailed || status == models.StatusCancelled {
+			reason := "failed"
+			if status == models.StatusCancelled {
+				reason = "cancelled"
+			}
+			// 依赖失败或取消 → 跳过下游 / dependency failed or cancelled -> skip downstream
 			if child, ok := s.state.Get(childID); ok {
 				child.Runtime = nil
 				child.RunStatus = ""
 			}
-			s.state.UpdateStatus(childID, models.StatusSkipped, nil, "dependency "+task.ID+" failed")
+			s.state.UpdateStatus(childID, models.StatusSkipped, nil, "dependency "+task.ID+" "+reason)
 			s.metrics.TasksFailed.Add(1)
 			s.cascadeSkip(childID)
 			continue
@@ -432,6 +465,10 @@ func runtimeStatusFromTask(status models.TaskStatus, runErr error) models.Runtim
 		return models.RuntimeSuccess
 	case models.StatusRunning:
 		return models.RuntimeRunning
+	case models.StatusCancelling:
+		return models.RuntimeCancelling
+	case models.StatusCancelled:
+		return models.RuntimeCancelled
 	case models.StatusFailed:
 		if errors.Is(runErr, context.Canceled) {
 			return models.RuntimeCancelled
@@ -643,7 +680,50 @@ func (s *Scheduler) inFlightCancelResult(taskID string) *executor.Result {
 }
 
 func taskStatusIsTerminal(status models.TaskStatus) bool {
-	return status == models.StatusSuccess || status == models.StatusFailed || status == models.StatusSkipped
+	return status.IsTerminal()
+}
+
+func (s *Scheduler) appendTaskEvent(task *models.Task, event models.RuntimeEvent) {
+	if task == nil {
+		return
+	}
+	if event.Type == "" {
+		return
+	}
+	task.Events = append(task.Events, event)
+}
+
+func terminalTaskEvent(task *models.Task, status models.TaskStatus, runtime *models.RuntimeResult, finishedAt time.Time) models.RuntimeEvent {
+	if task == nil || !status.IsTerminal() {
+		return models.RuntimeEvent{}
+	}
+	eventType := models.RuntimeEventFailed
+	message := "task failed"
+	switch status {
+	case models.StatusSuccess:
+		eventType = models.RuntimeEventSucceeded
+		message = "task succeeded"
+	case models.StatusCancelled:
+		eventType = models.RuntimeEventCancelled
+		message = "task cancelled"
+	case models.StatusSkipped:
+		eventType = models.RuntimeEventFailed
+		message = "task skipped"
+	}
+	handleID := task.HandleID
+	if runtime != nil && runtime.HandleID != "" {
+		handleID = runtime.HandleID
+	}
+	if finishedAt.IsZero() {
+		finishedAt = time.Now()
+	}
+	return models.RuntimeEvent{
+		Type:      eventType,
+		TaskID:    task.ID,
+		HandleID:  handleID,
+		Timestamp: finishedAt,
+		Message:   message,
+	}
 }
 
 type canceledError struct {

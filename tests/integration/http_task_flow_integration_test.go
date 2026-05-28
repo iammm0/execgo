@@ -179,20 +179,24 @@ func TestHTTPTaskFlow_CancelLocalTask(t *testing.T) {
 	var cancelBody struct {
 		Status  string                `json:"status"`
 		Runtime *models.RuntimeResult `json:"runtime"`
+		Event   *models.RuntimeEvent  `json:"event"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&cancelBody); err != nil {
 		t.Fatalf("decode cancel response: %v", err)
 	}
-	if cancelBody.Status != string(models.StatusFailed) {
-		t.Fatalf("expected cancel response status=%s, got %s", models.StatusFailed, cancelBody.Status)
+	if cancelBody.Status != string(models.StatusCancelling) {
+		t.Fatalf("expected cancel response status=%s, got %s", models.StatusCancelling, cancelBody.Status)
 	}
-	if cancelBody.Runtime == nil || cancelBody.Runtime.Status != models.RuntimeCancelled {
-		t.Fatalf("expected cancel response runtime cancelled, got %#v", cancelBody.Runtime)
+	if cancelBody.Runtime == nil || cancelBody.Runtime.Status != models.RuntimeCancelling {
+		t.Fatalf("expected cancel response runtime cancelling, got %#v", cancelBody.Runtime)
+	}
+	if cancelBody.Event == nil || cancelBody.Event.Type != models.RuntimeEventCancelRequested {
+		t.Fatalf("expected cancel_requested event, got %#v", cancelBody.Event)
 	}
 
 	task := testutil.WaitTaskInStore(t, rt.Store, "local-cancel", 2*time.Second)
-	if task.Status != models.StatusFailed {
-		t.Fatalf("expected status=%s, got %s", models.StatusFailed, task.Status)
+	if task.Status != models.StatusCancelled {
+		t.Fatalf("expected status=%s, got %s", models.StatusCancelled, task.Status)
 	}
 	if task.Runtime == nil || task.Runtime.Status != models.RuntimeCancelled {
 		t.Fatalf("expected runtime cancelled, got %#v", task.Runtime)
@@ -229,23 +233,27 @@ func TestHTTPTaskFlow_CancelRuntimeHandle(t *testing.T) {
 	var cancelBody struct {
 		Status  string                `json:"status"`
 		Runtime *models.RuntimeResult `json:"runtime"`
+		Event   *models.RuntimeEvent  `json:"event"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&cancelBody); err != nil {
 		t.Fatalf("decode cancel response: %v", err)
 	}
-	if cancelBody.Status != string(models.StatusFailed) {
-		t.Fatalf("expected cancel response status=%s, got %s", models.StatusFailed, cancelBody.Status)
+	if cancelBody.Status != string(models.StatusCancelling) {
+		t.Fatalf("expected cancel response status=%s, got %s", models.StatusCancelling, cancelBody.Status)
 	}
-	if cancelBody.Runtime == nil || cancelBody.Runtime.Status != models.RuntimeCancelled {
-		t.Fatalf("expected cancel response runtime cancelled, got %#v", cancelBody.Runtime)
+	if cancelBody.Runtime == nil || cancelBody.Runtime.Status != models.RuntimeCancelling {
+		t.Fatalf("expected cancel response runtime cancelling, got %#v", cancelBody.Runtime)
+	}
+	if cancelBody.Event == nil || cancelBody.Event.Type != models.RuntimeEventCancelRequested {
+		t.Fatalf("expected cancel_requested event, got %#v", cancelBody.Event)
 	}
 	if cancelExec.cancelledCount != 1 {
 		t.Fatalf("expected CancelHandle once, got %d", cancelExec.cancelledCount)
 	}
 
 	task := testutil.WaitTaskInStore(t, rt.Store, "runtime-cancel", 2*time.Second)
-	if task.Status != models.StatusFailed {
-		t.Fatalf("expected status=%s, got %s", models.StatusFailed, task.Status)
+	if task.Status != models.StatusCancelled {
+		t.Fatalf("expected status=%s, got %s", models.StatusCancelled, task.Status)
 	}
 	if task.Runtime == nil || task.Runtime.Status != models.RuntimeCancelled {
 		t.Fatalf("expected runtime cancelled, got %#v", task.Runtime)
@@ -322,7 +330,7 @@ func pollTaskByHTTP(t *testing.T, client *http.Client, baseURL, taskID string, t
 		var task models.Task
 		_ = json.NewDecoder(resp.Body).Decode(&task)
 		_ = resp.Body.Close()
-		if task.Status == models.StatusSuccess || task.Status == models.StatusFailed || task.Status == models.StatusSkipped {
+		if task.Status.IsTerminal() {
 			return &task
 		}
 		time.Sleep(20 * time.Millisecond)

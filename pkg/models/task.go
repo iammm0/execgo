@@ -13,12 +13,24 @@ type TaskStatus string
 
 // TaskStatus 常量集合 / TaskStatus values.
 const (
-	StatusPending TaskStatus = "pending"
-	StatusRunning TaskStatus = "running"
-	StatusSuccess TaskStatus = "success"
-	StatusFailed  TaskStatus = "failed"
-	StatusSkipped TaskStatus = "skipped" // 依赖失败时跳过 / skipped when dependency fails
+	StatusPending    TaskStatus = "pending"
+	StatusRunning    TaskStatus = "running"
+	StatusCancelling TaskStatus = "cancelling"
+	StatusSuccess    TaskStatus = "success"
+	StatusFailed     TaskStatus = "failed"
+	StatusCancelled  TaskStatus = "cancelled"
+	StatusSkipped    TaskStatus = "skipped" // 依赖失败或取消时跳过 / skipped when dependency fails or is cancelled
 )
+
+// IsTerminal reports whether the task reached a final state.
+func (s TaskStatus) IsTerminal() bool {
+	switch s {
+	case StatusSuccess, StatusFailed, StatusCancelled, StatusSkipped:
+		return true
+	default:
+		return false
+	}
+}
 
 // Task 是 AI 与执行引擎之间的核心契约 / core contract between AI and execution engine.
 type Task struct {
@@ -33,11 +45,12 @@ type Task struct {
 	Timeout     int64             `json:"timeout,omitempty"` // 毫秒 / milliseconds
 	Annotations map[string]string `json:"annotations,omitempty"`
 	Status      TaskStatus        `json:"status"`
-	RunStatus   string            `json:"run_status,omitempty"` // accepted | running | success | failed | cancelled
+	RunStatus   string            `json:"run_status,omitempty"` // accepted | running | cancelling | success | failed | cancelled
 	HandleID    string            `json:"handle_id,omitempty"`
 	Progress    json.RawMessage   `json:"progress,omitempty"`
 	Result      json.RawMessage   `json:"result,omitempty"`
 	Runtime     *RuntimeResult    `json:"runtime,omitempty"` // 规范化运行时结果 / normalized runtime envelope
+	Events      []RuntimeEvent    `json:"events,omitempty"`
 	Error       string            `json:"error,omitempty"`
 	CreatedAt   time.Time         `json:"created_at"`
 	UpdatedAt   time.Time         `json:"updated_at"`
@@ -154,5 +167,14 @@ type MetricsResponse struct {
 	TasksRunning   int64            `json:"tasks_running"`
 	TasksSucceeded int64            `json:"tasks_succeeded"`
 	TasksFailed    int64            `json:"tasks_failed"`
+	TasksCancelled int64            `json:"tasks_cancelled"`
 	ByType         map[string]int64 `json:"by_type"`
+}
+
+// CancelTaskResponse is returned by POST /tasks/{id}/cancel.
+type CancelTaskResponse struct {
+	TaskID  string         `json:"task_id"`
+	Status  TaskStatus     `json:"status"`
+	Runtime *RuntimeResult `json:"runtime,omitempty"`
+	Event   *RuntimeEvent  `json:"event,omitempty"`
 }
