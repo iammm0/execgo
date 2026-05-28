@@ -130,24 +130,338 @@ func (k *AdapterKernel) Capabilities() AdapterCapabilitiesResponse {
 // ToolManifest returns a stable manifest that mature agents can expose as tools or skills.
 func (k *AdapterKernel) ToolManifest() ToolManifestResponse {
 	_ = k
-	objectSchema := map[string]any{"type": "object"}
 	return ToolManifestResponse{
 		SchemaVersion: SchemaVersion,
 		Tools: []AgentToolSpec{
-			{Name: "execgo.os.shell", ActionKind: "os.shell", Category: "os", Description: "Run an allowlisted shell command or script", InputSchema: objectSchema, Aliases: []string{"shell", "bash", "terminal.command"}},
-			{Name: "execgo.os.file", ActionKind: "os.file", Category: "os", Description: "Read, write, append, delete, or stat a file", InputSchema: objectSchema, Aliases: []string{"file.read", "file.write"}},
-			{Name: "execgo.os.http", ActionKind: "os.http", Category: "os", Description: "Issue an HTTP request", InputSchema: objectSchema, Aliases: []string{"http.request"}},
-			{Name: "execgo.os.dns", ActionKind: "os.dns", Category: "os", Description: "Perform a DNS lookup", InputSchema: objectSchema},
-			{Name: "execgo.os.tcp", ActionKind: "os.tcp", Category: "os", Description: "Probe a TCP endpoint", InputSchema: objectSchema},
-			{Name: "execgo.os.sleep", ActionKind: "os.sleep", Category: "os", Description: "Delay execution for a duration", InputSchema: objectSchema},
-			{Name: "execgo.os.noop", ActionKind: "os.noop", Category: "os", Description: "No-op action for testing and placeholders", InputSchema: objectSchema},
-			{Name: "execgo.runtime.command", ActionKind: "runtime.command", Category: "runtime", Description: "Submit a command to execgo-runtime with resource and sandbox policy", InputSchema: objectSchema, Aliases: []string{"command"}},
-			{Name: "execgo.runtime.script", ActionKind: "runtime.script", Category: "runtime", Description: "Submit a script to execgo-runtime with resource and sandbox policy", InputSchema: objectSchema, Aliases: []string{"script"}},
-			{Name: "execgo.mcp.call", ActionKind: "mcp.call", Category: "mcp", Description: "Call an MCP tool through ExecGo", InputSchema: objectSchema},
-			{Name: "execgo.cli.run", ActionKind: "cli.run", Category: "cli-skills", Description: "Run a local CLI skill command", InputSchema: objectSchema},
-			{Name: "execgo.task_graph.submit", ActionKind: "task_graph.submit", Category: "task-dsl", Description: "Submit a prebuilt ExecGo TaskGraph", InputSchema: objectSchema},
+			{Name: "execgo.os.shell", ActionKind: "os.shell", Category: "os", Description: "Run an allowlisted shell command or script", InputSchema: shellInputSchema(), Aliases: []string{"shell", "bash", "terminal.command"}},
+			{Name: "execgo.os.file", ActionKind: "os.file", Category: "os", Description: "Read, write, append, delete, or stat a file", InputSchema: fileInputSchema(), Aliases: []string{"file.read", "file.write"}},
+			{Name: "execgo.os.http", ActionKind: "os.http", Category: "os", Description: "Issue an HTTP request", InputSchema: httpInputSchema(), Aliases: []string{"http.request"}},
+			{Name: "execgo.os.dns", ActionKind: "os.dns", Category: "os", Description: "Perform a DNS lookup", InputSchema: dnsInputSchema()},
+			{Name: "execgo.os.tcp", ActionKind: "os.tcp", Category: "os", Description: "Probe a TCP endpoint", InputSchema: tcpInputSchema()},
+			{Name: "execgo.os.sleep", ActionKind: "os.sleep", Category: "os", Description: "Delay execution for a duration", InputSchema: sleepInputSchema()},
+			{Name: "execgo.os.noop", ActionKind: "os.noop", Category: "os", Description: "No-op action for testing and placeholders", InputSchema: noopInputSchema()},
+			{Name: "execgo.runtime.command", ActionKind: "runtime.command", Category: "runtime", Description: "Submit a command to execgo-runtime with resource and sandbox policy", InputSchema: runtimeCommandInputSchema(), Aliases: []string{"command"}},
+			{Name: "execgo.runtime.script", ActionKind: "runtime.script", Category: "runtime", Description: "Submit a script to execgo-runtime with resource and sandbox policy", InputSchema: runtimeScriptInputSchema(), Aliases: []string{"script"}},
+			{Name: "execgo.mcp.call", ActionKind: "mcp.call", Category: "mcp", Description: "Call an MCP tool through ExecGo", InputSchema: mcpCallInputSchema()},
+			{Name: "execgo.cli.run", ActionKind: "cli.run", Category: "cli-skills", Description: "Run a local CLI skill command", InputSchema: cliRunInputSchema()},
+			{Name: "execgo.task_graph.submit", ActionKind: "task_graph.submit", Category: "task-dsl", Description: "Submit a prebuilt ExecGo TaskGraph", InputSchema: taskGraphSubmitInputSchema()},
 		},
 	}
+}
+
+func shellInputSchema() map[string]any {
+	return objectInputSchema(
+		map[string]any{
+			"command": stringInput("Command to execute directly. The command basename is checked against ExecGo's shell allowlist unless shell policy is open."),
+			"args":    stringArrayInput("Arguments passed to command without shell interpolation."),
+			"dir":     stringInput("Optional working directory for the command or script."),
+			"script":  stringInput("Script body to execute through the selected runner."),
+			"runner":  enumInput([]string{"auto", "direct", "powershell", "cmd", "sh"}, "auto", "Script runner. direct is valid only with command/args, not with script."),
+		},
+		nil,
+		false,
+		map[string]any{
+			"oneOf": []any{
+				map[string]any{"required": []string{"command"}},
+				map[string]any{"required": []string{"script"}},
+			},
+		},
+	)
+}
+
+func fileInputSchema() map[string]any {
+	return objectInputSchema(
+		map[string]any{
+			"action":  enumInput([]string{"read", "write", "append", "delete", "stat"}, "", "Filesystem action to perform."),
+			"path":    stringInput("File path. ExecGo cleans the path before executing the action."),
+			"content": stringInput("Content used by write and append actions."),
+		},
+		[]string{"action", "path"},
+		false,
+		map[string]any{
+			"allOf": []any{
+				map[string]any{
+					"if": map[string]any{
+						"properties": map[string]any{
+							"action": map[string]any{"enum": []string{"write", "append"}},
+						},
+					},
+					"then": map[string]any{"required": []string{"content"}},
+				},
+			},
+		},
+	)
+}
+
+func httpInputSchema() map[string]any {
+	return objectInputSchema(
+		map[string]any{
+			"url":     map[string]any{"type": "string", "format": "uri", "description": "Request URL."},
+			"method":  stringInputWithDefault("HTTP method. Defaults to GET.", "GET"),
+			"headers": stringMapInput("HTTP headers to set on the request."),
+			"body":    stringInput("Optional request body."),
+		},
+		[]string{"url"},
+		false,
+		nil,
+	)
+}
+
+func dnsInputSchema() map[string]any {
+	return objectInputSchema(
+		map[string]any{
+			"name":   stringInput("DNS name to resolve."),
+			"record": enumInput([]string{"ip", "txt", "cname"}, "ip", "DNS record kind. Defaults to ip."),
+		},
+		[]string{"name"},
+		false,
+		nil,
+	)
+}
+
+func tcpInputSchema() map[string]any {
+	return objectInputSchema(
+		map[string]any{
+			"address":    stringInput("TCP endpoint in host:port form."),
+			"timeout_ms": integerInput("Dial timeout in milliseconds. Defaults to 5000.", int64(1), int64(60000), int64(5000)),
+		},
+		[]string{"address"},
+		false,
+		nil,
+	)
+}
+
+func sleepInputSchema() map[string]any {
+	return objectInputSchema(
+		map[string]any{
+			"duration_ms": integerInput("Delay duration in milliseconds.", int64(0), int64(600000), nil),
+		},
+		[]string{"duration_ms"},
+		false,
+		nil,
+	)
+}
+
+func noopInputSchema() map[string]any {
+	return objectInputSchema(
+		map[string]any{
+			"message": stringInput("Optional message echoed in the result."),
+		},
+		nil,
+		false,
+		nil,
+	)
+}
+
+func runtimeCommandInputSchema() map[string]any {
+	return runtimeInputSchema(
+		map[string]any{
+			"program": stringInput("Executable path or program name for a flat runtime.command input."),
+			"args":    stringArrayInput("Arguments passed to program."),
+			"env":     stringMapInput("Environment variables merged into the execution object."),
+		},
+		[]any{
+			map[string]any{"required": []string{"program"}},
+			map[string]any{"required": []string{"execution"}},
+		},
+	)
+}
+
+func runtimeScriptInputSchema() map[string]any {
+	return runtimeInputSchema(
+		map[string]any{
+			"script":      stringInput("Script body for a flat runtime.script input."),
+			"interpreter": stringArrayInput("Interpreter command and arguments, for example [\"/bin/sh\", \"-c\"]."),
+			"env":         stringMapInput("Environment variables merged into the execution object."),
+		},
+		[]any{
+			map[string]any{"required": []string{"script"}},
+			map[string]any{"required": []string{"execution"}},
+		},
+	)
+}
+
+func runtimeInputSchema(flatProperties map[string]any, oneOf []any) map[string]any {
+	properties := map[string]any{
+		"task_id":         stringInput("Optional runtime task id. ExecGo injects the adapter action_id when present."),
+		"execution":       runtimeExecutionInputSchema(),
+		"limits":          freeObjectInput("execgo-runtime limits object, forwarded as-is."),
+		"sandbox":         freeObjectInput("execgo-runtime sandbox object, forwarded as-is."),
+		"policy":          freeObjectInput("execgo-runtime policy object, forwarded as-is."),
+		"control_context": freeObjectInput("execgo-runtime control_context object, forwarded as-is."),
+		"metadata":        stringMapInput("Runtime metadata. ExecGo merges adapter provenance into this map."),
+	}
+	for key, value := range flatProperties {
+		properties[key] = value
+	}
+	return objectInputSchema(properties, nil, false, map[string]any{"oneOf": oneOf})
+}
+
+func runtimeExecutionInputSchema() map[string]any {
+	return objectInputSchema(
+		map[string]any{
+			"kind":        enumInput([]string{"command", "script"}, "", "Runtime execution kind."),
+			"program":     stringInput("Executable path or program name for command execution."),
+			"args":        stringArrayInput("Arguments passed to program."),
+			"script":      stringInput("Script body for script execution."),
+			"interpreter": stringArrayInput("Interpreter command and arguments for script execution."),
+			"env":         stringMapInput("Environment variables for the runtime execution."),
+		},
+		nil,
+		true,
+		nil,
+	)
+}
+
+func mcpCallInputSchema() map[string]any {
+	return objectInputSchema(
+		map[string]any{
+			"tool_name": stringInput("MCP tool name. Required here when action.tool_name is not set."),
+		},
+		nil,
+		true,
+		nil,
+	)
+}
+
+func cliRunInputSchema() map[string]any {
+	return objectInputSchema(
+		map[string]any{
+			"command": stringInput("Local CLI command to execute."),
+			"args":    stringArrayInput("Arguments passed to the local CLI command."),
+		},
+		[]string{"command"},
+		false,
+		nil,
+	)
+}
+
+func taskGraphSubmitInputSchema() map[string]any {
+	return objectInputSchema(
+		map[string]any{
+			"tasks":      taskArrayInputSchema(),
+			"task_graph": objectInputSchema(map[string]any{"tasks": taskArrayInputSchema()}, []string{"tasks"}, false, nil),
+		},
+		nil,
+		false,
+		map[string]any{
+			"oneOf": []any{
+				map[string]any{"required": []string{"tasks"}},
+				map[string]any{"required": []string{"task_graph"}},
+			},
+		},
+	)
+}
+
+func taskArrayInputSchema() map[string]any {
+	return map[string]any{
+		"type":        "array",
+		"description": "ExecGo Task DSL tasks.",
+		"items":       taskInputSchema(),
+	}
+}
+
+func taskInputSchema() map[string]any {
+	return objectInputSchema(
+		map[string]any{
+			"id":                 stringInput("Unique task id within the graph."),
+			"type":               stringInput("Executor type, for example os, runtime, mcp, cli-skills, or a legacy type such as shell/file/http/noop."),
+			"tool_name":          stringInput("Tool name used with category-style task types, for example shell, file, http, noop."),
+			"execution_category": stringInput("Optional executor category."),
+			"params":             freeObjectInput("Legacy task parameters."),
+			"input":              freeObjectInput("Category/tool input payload."),
+			"depends_on":         stringArrayInput("Task ids that must finish successfully before this task runs."),
+			"retry":              integerInput("Retry count.", int64(0), nil, nil),
+			"timeout":            integerInput("Timeout in milliseconds.", int64(1), nil, nil),
+			"annotations":        stringMapInput("Task annotations for audit and provenance."),
+		},
+		[]string{"id", "type"},
+		false,
+		nil,
+	)
+}
+
+func objectInputSchema(properties map[string]any, required []string, additionalProperties bool, extra map[string]any) map[string]any {
+	schema := map[string]any{
+		"type":                 "object",
+		"properties":           properties,
+		"additionalProperties": additionalProperties,
+	}
+	if len(required) > 0 {
+		schema["required"] = required
+	}
+	for key, value := range extra {
+		schema[key] = value
+	}
+	return schema
+}
+
+func freeObjectInput(description string) map[string]any {
+	return map[string]any{
+		"type":                 "object",
+		"description":          description,
+		"additionalProperties": true,
+	}
+}
+
+func stringInput(description string) map[string]any {
+	return map[string]any{
+		"type":        "string",
+		"description": description,
+	}
+}
+
+func stringInputWithDefault(description, defaultValue string) map[string]any {
+	schema := stringInput(description)
+	schema["default"] = defaultValue
+	return schema
+}
+
+func stringArrayInput(description string) map[string]any {
+	return map[string]any{
+		"type":        "array",
+		"description": description,
+		"items":       map[string]any{"type": "string"},
+	}
+}
+
+func stringMapInput(description string) map[string]any {
+	return map[string]any{
+		"type":        "object",
+		"description": description,
+		"additionalProperties": map[string]any{
+			"type": "string",
+		},
+	}
+}
+
+func enumInput(values []string, defaultValue string, description string) map[string]any {
+	schema := map[string]any{
+		"type":        "string",
+		"enum":        values,
+		"description": description,
+	}
+	if defaultValue != "" {
+		schema["default"] = defaultValue
+	}
+	return schema
+}
+
+func integerInput(description string, minimum any, maximum any, defaultValue any) map[string]any {
+	schema := map[string]any{
+		"type":        "integer",
+		"description": description,
+	}
+	if minimum != nil {
+		schema["minimum"] = minimum
+	}
+	if maximum != nil {
+		schema["maximum"] = maximum
+	}
+	if defaultValue != nil {
+		schema["default"] = defaultValue
+	}
+	return schema
 }
 
 // Translate 把单个 agent action 请求翻译为 ExecGo TaskGraph（并执行 TaskGraph.Validate 校验）。

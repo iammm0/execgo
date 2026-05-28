@@ -144,3 +144,125 @@ func TestTranslateGeneratesTaskID(t *testing.T) {
 		t.Fatalf("response task id mismatch: %#v", resp.TaskIDs)
 	}
 }
+
+func TestToolManifestExposesMachineReadableInputSchemas(t *testing.T) {
+	kernel := adapter.NewAdapterKernel()
+	manifest := kernel.ToolManifest()
+
+	tools := make(map[string]adapter.AgentToolSpec, len(manifest.Tools))
+	for _, tool := range manifest.Tools {
+		tools[tool.ActionKind] = tool
+	}
+
+	shell := requiredTool(t, tools, "os.shell").InputSchema
+	shellProps := schemaProperties(t, shell)
+	if _, ok := shellProps["command"]; !ok {
+		t.Fatalf("os.shell schema missing command property: %#v", shellProps)
+	}
+	if _, ok := shellProps["script"]; !ok {
+		t.Fatalf("os.shell schema missing script property: %#v", shellProps)
+	}
+	if len(schemaArray(t, shell, "oneOf")) != 2 {
+		t.Fatalf("os.shell schema should describe command/script alternatives: %#v", shell)
+	}
+
+	file := requiredTool(t, tools, "os.file").InputSchema
+	fileProps := schemaProperties(t, file)
+	action := schemaObject(t, fileProps["action"])
+	if !containsAny(enumValues(t, action), "read", "write", "append", "delete", "stat") {
+		t.Fatalf("os.file action enum incomplete: %#v", action["enum"])
+	}
+	if !containsAny(requiredValues(t, file), "action", "path") {
+		t.Fatalf("os.file schema should require action and path: %#v", file["required"])
+	}
+	if len(schemaArray(t, file, "allOf")) == 0 {
+		t.Fatalf("os.file schema should describe content requirement for write/append: %#v", file)
+	}
+
+	runtimeCommand := requiredTool(t, tools, "runtime.command").InputSchema
+	runtimeProps := schemaProperties(t, runtimeCommand)
+	if _, ok := runtimeProps["program"]; !ok {
+		t.Fatalf("runtime.command schema missing flat program property: %#v", runtimeProps)
+	}
+	if _, ok := runtimeProps["execution"]; !ok {
+		t.Fatalf("runtime.command schema missing execution property: %#v", runtimeProps)
+	}
+	if len(schemaArray(t, runtimeCommand, "oneOf")) != 2 {
+		t.Fatalf("runtime.command schema should describe program/execution alternatives: %#v", runtimeCommand)
+	}
+
+	taskGraph := requiredTool(t, tools, "task_graph.submit").InputSchema
+	taskGraphProps := schemaProperties(t, taskGraph)
+	if _, ok := taskGraphProps["tasks"]; !ok {
+		t.Fatalf("task_graph.submit schema missing tasks property: %#v", taskGraphProps)
+	}
+	if _, ok := taskGraphProps["task_graph"]; !ok {
+		t.Fatalf("task_graph.submit schema missing task_graph property: %#v", taskGraphProps)
+	}
+}
+
+func requiredTool(t *testing.T, tools map[string]adapter.AgentToolSpec, kind string) adapter.AgentToolSpec {
+	t.Helper()
+	tool, ok := tools[kind]
+	if !ok {
+		t.Fatalf("missing tool kind %q in manifest", kind)
+	}
+	if tool.InputSchema["type"] != "object" {
+		t.Fatalf("%s input schema type=%v want object", kind, tool.InputSchema["type"])
+	}
+	return tool
+}
+
+func schemaProperties(t *testing.T, schema map[string]any) map[string]any {
+	t.Helper()
+	return schemaObject(t, schema["properties"])
+}
+
+func schemaObject(t *testing.T, value any) map[string]any {
+	t.Helper()
+	obj, ok := value.(map[string]any)
+	if !ok {
+		t.Fatalf("schema value is %T, want map[string]any: %#v", value, value)
+	}
+	return obj
+}
+
+func schemaArray(t *testing.T, schema map[string]any, key string) []any {
+	t.Helper()
+	values, ok := schema[key].([]any)
+	if !ok {
+		t.Fatalf("schema[%q] is %T, want []any: %#v", key, schema[key], schema[key])
+	}
+	return values
+}
+
+func enumValues(t *testing.T, schema map[string]any) []string {
+	t.Helper()
+	values, ok := schema["enum"].([]string)
+	if !ok {
+		t.Fatalf("schema enum is %T, want []string: %#v", schema["enum"], schema["enum"])
+	}
+	return values
+}
+
+func requiredValues(t *testing.T, schema map[string]any) []string {
+	t.Helper()
+	values, ok := schema["required"].([]string)
+	if !ok {
+		t.Fatalf("schema required is %T, want []string: %#v", schema["required"], schema["required"])
+	}
+	return values
+}
+
+func containsAny(values []string, wants ...string) bool {
+	seen := make(map[string]bool, len(values))
+	for _, value := range values {
+		seen[value] = true
+	}
+	for _, want := range wants {
+		if !seen[want] {
+			return false
+		}
+	}
+	return true
+}
