@@ -31,7 +31,7 @@ func TestHTTPTaskFlow_SubmitThenQueryStatus(t *testing.T) {
 
 	payload := map[string]any{
 		"tasks": []map[string]any{
-			{"id": "first", "type": "noop", "params": map[string]any{"message": "hi"}},
+			{"id": "first", "type": "noop", "params": map[string]any{"message": "hi"}, "required_capabilities": map[string]any{"sandbox": "local"}},
 			{"id": "second", "type": "noop", "depends_on": []string{"first"}},
 		},
 	}
@@ -67,6 +67,10 @@ func TestHTTPTaskFlow_SubmitThenQueryStatus(t *testing.T) {
 	if task.Status != models.StatusSuccess {
 		t.Fatalf("task second status=%s error=%s", task.Status, task.Error)
 	}
+	first := pollTaskByHTTP(t, client, srv.URL, "first", time.Second)
+	if first.RequiredCapabilities["sandbox"] != "local" {
+		t.Fatalf("required_capabilities=%v want sandbox=local", first.RequiredCapabilities)
+	}
 	if task.Runtime == nil {
 		t.Fatal("expected runtime envelope in HTTP task payload")
 	}
@@ -96,6 +100,9 @@ func TestHTTPTaskFlow_SubmitThenQueryStatus(t *testing.T) {
 	}
 	if len(workersPayload.Workers) == 0 {
 		t.Fatal("expected /workers to include the local worker")
+	}
+	if workersPayload.Workers[0].Capabilities["executor"] == "" {
+		t.Fatalf("expected worker executor capability, got %+v", workersPayload.Workers[0].Capabilities)
 	}
 
 	eventsResp, err := client.Get(srv.URL + "/events?limit=10")

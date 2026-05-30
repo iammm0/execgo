@@ -699,6 +699,12 @@ func cloneTask(in *models.Task) *models.Task {
 	cp := *in
 	cp.DependsOn = append([]string(nil), in.DependsOn...)
 	cp.CompensateWith = append([]string(nil), in.CompensateWith...)
+	if len(in.RequiredCapabilities) > 0 {
+		cp.RequiredCapabilities = make(map[string]string, len(in.RequiredCapabilities))
+		for k, v := range in.RequiredCapabilities {
+			cp.RequiredCapabilities[k] = v
+		}
+	}
 	cp.Params = cloneRaw(in.Params)
 	cp.Input = cloneRaw(in.Input)
 	cp.Progress = cloneRaw(in.Progress)

@@ -120,6 +120,7 @@ func TestServer_CancelTaskStatusSemantics(t *testing.T) {
 func TestWorkerControl_PollAndAckSuccess(t *testing.T) {
 	h := newWorkerControlHarness(t)
 	ctx := context.Background()
+	h.registerWorker(t, ctx, "worker-a", map[string]string{"executor": "noop", "sandbox": "local"})
 
 	h.sched.Submit(&models.TaskGraph{
 		Tasks: []*models.Task{
@@ -184,6 +185,7 @@ func TestWorkerControl_PollAndAckSuccess(t *testing.T) {
 func TestWorkerControl_ReportProgressTransitionsToRunning(t *testing.T) {
 	h := newWorkerControlHarness(t)
 	ctx := context.Background()
+	h.registerWorker(t, ctx, "worker-a", map[string]string{"executor": "noop", "sandbox": "local"})
 
 	h.sched.Submit(&models.TaskGraph{
 		Tasks: []*models.Task{
@@ -225,5 +227,37 @@ func TestWorkerControl_ReportProgressTransitionsToRunning(t *testing.T) {
 	}
 	if got := h.metrics.TasksRunning.Load(); got != 1 {
 		t.Fatalf("expected TasksRunning=1 after progress, got %d", got)
+	}
+}
+
+func TestServer_TaskRequiredCapabilitiesProtoMapping(t *testing.T) {
+	task := &models.Task{
+		ID:                   "cap-task",
+		Type:                 "noop",
+		RequiredCapabilities: map[string]string{"sandbox": "docker"},
+	}
+	protoTask := taskToProto(task)
+	if protoTask.GetRequiredCapabilities()["sandbox"] != "docker" {
+		t.Fatalf("proto required_capabilities=%v want sandbox=docker", protoTask.GetRequiredCapabilities())
+	}
+
+	modelTask := taskFromProto(&execgov1.Task{
+		Id:                   "cap-task",
+		Type:                 "noop",
+		RequiredCapabilities: map[string]string{"sandbox": "docker"},
+	})
+	if modelTask.RequiredCapabilities["sandbox"] != "docker" {
+		t.Fatalf("model required_capabilities=%v want sandbox=docker", modelTask.RequiredCapabilities)
+	}
+}
+
+func (h *workerControlHarness) registerWorker(t *testing.T, ctx context.Context, workerID string, caps map[string]string) {
+	t.Helper()
+	_, err := h.server.RegisterWorker(ctx, &execgov1.RegisterWorkerRequest{
+		WorkerId:     workerID,
+		Capabilities: caps,
+	})
+	if err != nil {
+		t.Fatalf("register worker %s: %v", workerID, err)
 	}
 }

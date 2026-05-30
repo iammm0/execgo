@@ -75,6 +75,7 @@ func NewRemoteGRPCWorker(cfg RemoteGRPCConfig, logger *slog.Logger) *RemoteGRPCW
 	if cfg.Runner == nil {
 		cfg.Runner = sandbox.LocalRunner{}
 	}
+	cfg.Capabilities = defaultCapabilities(cfg.Runner.Name(), cfg.Capabilities)
 	return &RemoteGRPCWorker{cfg: cfg, logger: logger}
 }
 
@@ -402,23 +403,24 @@ func taskFromProto(t *execgov1.Task) *models.Task {
 		scheduledAt = &ts
 	}
 	return &models.Task{
-		ID:          t.GetId(),
-		WorkflowID:  t.GetWorkflowId(),
-		Type:        t.GetType(),
-		Params:      params,
-		ToolName:    t.GetToolName(),
-		Input:       input,
-		Category:    t.GetExecutionCategory(),
-		DependsOn:   t.GetDependsOn(),
-		Retry:       int(t.GetRetry()),
-		Priority:    int(t.GetPriority()),
-		ScheduledAt: scheduledAt,
-		Timeout:     t.GetTimeoutMs(),
-		Status:      models.TaskStatus(t.GetStatus()),
-		Error:       t.GetError(),
-		Attempt:     int(t.GetAttempt()),
-		Version:     t.GetVersion(),
-		HandleID:    t.GetHandleId(),
-		RunStatus:   t.GetRunStatus(),
+		ID:                   t.GetId(),
+		WorkflowID:           t.GetWorkflowId(),
+		Type:                 t.GetType(),
+		Params:               params,
+		ToolName:             t.GetToolName(),
+		Input:                input,
+		Category:             t.GetExecutionCategory(),
+		DependsOn:            t.GetDependsOn(),
+		Retry:                int(t.GetRetry()),
+		Priority:             int(t.GetPriority()),
+		ScheduledAt:          scheduledAt,
+		Timeout:              t.GetTimeoutMs(),
+		Status:               models.TaskStatus(t.GetStatus()),
+		Error:                t.GetError(),
+		Attempt:              int(t.GetAttempt()),
+		Version:              t.GetVersion(),
+		HandleID:             t.GetHandleId(),
+		RunStatus:            t.GetRunStatus(),
+		RequiredCapabilities: copyStringMap(t.GetRequiredCapabilities()),
 	}
 }

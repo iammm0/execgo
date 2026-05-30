@@ -60,27 +60,28 @@ func taskToProto(t *models.Task) *execgov1.Task {
 		scheduledAtUnixMS = t.ScheduledAt.UnixMilli()
 	}
 	return &execgov1.Task{
-		Id:                t.ID,
-		Type:              t.Type,
-		ParamsJson:        paramsJSON,
-		DependsOn:         t.DependsOn,
-		Retry:             int32(t.Retry),
-		TimeoutMs:         t.Timeout,
-		Status:            string(t.Status),
-		ResultJson:        resultJSON,
-		Error:             t.Error,
-		CreatedAtUnixMs:   t.CreatedAt.UnixMilli(),
-		UpdatedAtUnixMs:   t.UpdatedAt.UnixMilli(),
-		ToolName:          t.ToolName,
-		InputJson:         inputJSON,
-		ExecutionCategory: t.Category,
-		Priority:          int32(t.Priority),
-		ScheduledAtUnixMs: scheduledAtUnixMS,
-		Version:           t.Version,
-		WorkflowId:        t.WorkflowID,
-		Attempt:           int32(t.Attempt),
-		HandleId:          t.HandleID,
-		RunStatus:         t.RunStatus,
+		Id:                   t.ID,
+		Type:                 t.Type,
+		ParamsJson:           paramsJSON,
+		DependsOn:            t.DependsOn,
+		Retry:                int32(t.Retry),
+		TimeoutMs:            t.Timeout,
+		Status:               string(t.Status),
+		ResultJson:           resultJSON,
+		Error:                t.Error,
+		CreatedAtUnixMs:      t.CreatedAt.UnixMilli(),
+		UpdatedAtUnixMs:      t.UpdatedAt.UnixMilli(),
+		ToolName:             t.ToolName,
+		InputJson:            inputJSON,
+		ExecutionCategory:    t.Category,
+		Priority:             int32(t.Priority),
+		ScheduledAtUnixMs:    scheduledAtUnixMS,
+		Version:              t.Version,
+		WorkflowId:           t.WorkflowID,
+		Attempt:              int32(t.Attempt),
+		HandleId:             t.HandleID,
+		RunStatus:            t.RunStatus,
+		RequiredCapabilities: copyStringMap(t.RequiredCapabilities),
 	}
 }
 
@@ -100,22 +101,23 @@ func taskFromProto(t *execgov1.Task) *models.Task {
 	}
 
 	return &models.Task{
-		ID:          t.GetId(),
-		WorkflowID:  t.GetWorkflowId(),
-		Type:        t.GetType(),
-		Params:      params,
-		ToolName:    t.GetToolName(),
-		Input:       input,
-		Category:    t.GetExecutionCategory(),
-		DependsOn:   t.GetDependsOn(),
-		Retry:       int(t.GetRetry()),
-		Priority:    int(t.GetPriority()),
-		ScheduledAt: scheduledAt,
-		Timeout:     t.GetTimeoutMs(),
-		Version:     t.GetVersion(),
-		Attempt:     int(t.GetAttempt()),
-		HandleID:    t.GetHandleId(),
-		RunStatus:   t.GetRunStatus(),
+		ID:                   t.GetId(),
+		WorkflowID:           t.GetWorkflowId(),
+		Type:                 t.GetType(),
+		Params:               params,
+		ToolName:             t.GetToolName(),
+		Input:                input,
+		Category:             t.GetExecutionCategory(),
+		DependsOn:            t.GetDependsOn(),
+		Retry:                int(t.GetRetry()),
+		Priority:             int(t.GetPriority()),
+		ScheduledAt:          scheduledAt,
+		Timeout:              t.GetTimeoutMs(),
+		Version:              t.GetVersion(),
+		Attempt:              int(t.GetAttempt()),
+		HandleID:             t.GetHandleId(),
+		RunStatus:            t.GetRunStatus(),
+		RequiredCapabilities: copyStringMap(t.GetRequiredCapabilities()),
 		// Status/CreatedAt/UpdatedAt are assigned by scheduler.Submit and persistence layer.
 		Status: models.StatusPending,
 	}
@@ -228,11 +230,23 @@ func (s *Server) Health(ctx context.Context, req *execgov1.HealthRequest) (*exec
 func (s *Server) Metrics(ctx context.Context, req *execgov1.MetricsRequest) (*execgov1.MetricsResponse, error) {
 	_ = req
 	return &execgov1.MetricsResponse{
-		TasksTotal:     s.metrics.TasksTotal.Load(),
-		TasksRunning:   s.metrics.TasksRunning.Load(),
-		TasksSucceeded: s.metrics.TasksSucceeded.Load(),
-		TasksFailed:    s.metrics.TasksFailed.Load(),
-		TasksCancelled: s.metrics.TasksCancelled.Load(),
-		ByType:         s.metrics.Snapshot(),
+		TasksTotal:                   s.metrics.TasksTotal.Load(),
+		TasksRunning:                 s.metrics.TasksRunning.Load(),
+		TasksSucceeded:               s.metrics.TasksSucceeded.Load(),
+		TasksFailed:                  s.metrics.TasksFailed.Load(),
+		TasksCancelled:               s.metrics.TasksCancelled.Load(),
+		DispatchCapabilityMismatches: s.metrics.DispatchCapabilityMismatches.Load(),
+		ByType:                       s.metrics.Snapshot(),
 	}, nil
+}
+
+func copyStringMap(in map[string]string) map[string]string {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(in))
+	for k, v := range in {
+		out[k] = v
+	}
+	return out
 }

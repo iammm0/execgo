@@ -25,6 +25,7 @@ import (
 // Config controls worker runtime behavior.
 type Config struct {
 	ID                string
+	Capabilities      map[string]string
 	Concurrency       int
 	PollWait          time.Duration
 	LeaseDuration     time.Duration
@@ -97,7 +98,7 @@ func (w *Worker) Start(ctx context.Context) {
 	w.cancel = cancel
 
 	if w.evented != nil {
-		_ = w.evented.RegisterWorker(runCtx, w.cfg.ID, map[string]string{"sandbox": w.cfg.Runner.Name()}, models.RuntimeEventMetadata{WorkerID: w.cfg.ID, Producer: "worker"})
+		_ = w.evented.RegisterWorker(runCtx, w.cfg.ID, defaultCapabilities(w.cfg.Runner.Name(), w.cfg.Capabilities), models.RuntimeEventMetadata{WorkerID: w.cfg.ID, Producer: "worker"})
 		w.wg.Add(1)
 		go func() {
 			defer w.wg.Done()
@@ -151,27 +152,30 @@ func (w *Worker) runLoop(ctx context.Context, slot int) {
 		default:
 		}
 
-		msg, err := w.scheduler.Queue().Poll(ctx, w.cfg.ID, w.cfg.PollWait)
+		dispatch, err := w.scheduler.PollAssignable(ctx, w.cfg.ID, w.cfg.PollWait, w.cfg.LeaseDuration)
 		if err != nil {
 			if !errors.Is(err, context.Canceled) {
 				logger.Warn("queue poll failed", "error", err)
 			}
 			continue
 		}
-		if msg == nil {
+		if dispatch == nil || dispatch.Message == nil || dispatch.Task == nil {
 			continue
 		}
 
-		if err := w.handleMessage(ctx, msg); err != nil {
-			logger.Warn("handle message failed", "task_id", msg.TaskID, "error", err)
+		if err := w.handleMessage(ctx, dispatch.Message, dispatch.Task); err != nil {
+			logger.Warn("handle message failed", "task_id", dispatch.Message.TaskID, "error", err)
 		}
 	}
 }
 
-func (w *Worker) handleMessage(ctx context.Context, msg *taskqueue.Message) error {
-	task, ok := w.state.Get(msg.TaskID)
-	if !ok {
-		return w.scheduler.Queue().Ack(ctx, w.cfg.ID, msg.MessageID)
+func (w *Worker) handleMessage(ctx context.Context, msg *taskqueue.Message, task *models.Task) error {
+	if task == nil {
+		var ok bool
+		task, ok = w.state.Get(msg.TaskID)
+		if !ok {
+			return w.scheduler.Queue().Ack(ctx, w.cfg.ID, msg.MessageID)
+		}
 	}
 	if task.Status.IsTerminal() {
 		return w.scheduler.Queue().Ack(ctx, w.cfg.ID, msg.MessageID)
@@ -189,8 +193,6 @@ func (w *Worker) handleMessage(ctx context.Context, msg *taskqueue.Message) erro
 	)
 	defer span.End()
 	span.SetAttributes(attribute.String("execgo.task_type", task.Type))
-
-	w.scheduler.OnTaskLeased(task.ID, w.cfg.ID, time.Now().UTC().Add(w.cfg.LeaseDuration), attempt)
 
 	executor.NormalizeTask(task)
 	execImpl, err := executor.Get(task.Type)

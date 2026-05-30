@@ -66,30 +66,31 @@ func (x *TaskGraph) GetTasks() []*Task {
 }
 
 type Task struct {
-	state             protoimpl.MessageState `protogen:"open.v1"`
-	Id                string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Type              string                 `protobuf:"bytes,2,opt,name=type,proto3" json:"type,omitempty"`
-	ParamsJson        string                 `protobuf:"bytes,3,opt,name=params_json,json=paramsJson,proto3" json:"params_json,omitempty"`
-	DependsOn         []string               `protobuf:"bytes,4,rep,name=depends_on,json=dependsOn,proto3" json:"depends_on,omitempty"`
-	Retry             int32                  `protobuf:"varint,5,opt,name=retry,proto3" json:"retry,omitempty"`
-	TimeoutMs         int64                  `protobuf:"varint,6,opt,name=timeout_ms,json=timeoutMs,proto3" json:"timeout_ms,omitempty"`
-	Status            string                 `protobuf:"bytes,7,opt,name=status,proto3" json:"status,omitempty"`
-	ResultJson        string                 `protobuf:"bytes,8,opt,name=result_json,json=resultJson,proto3" json:"result_json,omitempty"`
-	Error             string                 `protobuf:"bytes,9,opt,name=error,proto3" json:"error,omitempty"`
-	CreatedAtUnixMs   int64                  `protobuf:"varint,10,opt,name=created_at_unix_ms,json=createdAtUnixMs,proto3" json:"created_at_unix_ms,omitempty"`
-	UpdatedAtUnixMs   int64                  `protobuf:"varint,11,opt,name=updated_at_unix_ms,json=updatedAtUnixMs,proto3" json:"updated_at_unix_ms,omitempty"`
-	ToolName          string                 `protobuf:"bytes,12,opt,name=tool_name,json=toolName,proto3" json:"tool_name,omitempty"`
-	InputJson         string                 `protobuf:"bytes,13,opt,name=input_json,json=inputJson,proto3" json:"input_json,omitempty"`
-	ExecutionCategory string                 `protobuf:"bytes,14,opt,name=execution_category,json=executionCategory,proto3" json:"execution_category,omitempty"`
-	Priority          int32                  `protobuf:"varint,15,opt,name=priority,proto3" json:"priority,omitempty"`
-	ScheduledAtUnixMs int64                  `protobuf:"varint,16,opt,name=scheduled_at_unix_ms,json=scheduledAtUnixMs,proto3" json:"scheduled_at_unix_ms,omitempty"`
-	Version           int64                  `protobuf:"varint,17,opt,name=version,proto3" json:"version,omitempty"`
-	WorkflowId        string                 `protobuf:"bytes,18,opt,name=workflow_id,json=workflowId,proto3" json:"workflow_id,omitempty"`
-	Attempt           int32                  `protobuf:"varint,19,opt,name=attempt,proto3" json:"attempt,omitempty"`
-	HandleId          string                 `protobuf:"bytes,20,opt,name=handle_id,json=handleId,proto3" json:"handle_id,omitempty"`
-	RunStatus         string                 `protobuf:"bytes,21,opt,name=run_status,json=runStatus,proto3" json:"run_status,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	state                protoimpl.MessageState `protogen:"open.v1"`
+	Id                   string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Type                 string                 `protobuf:"bytes,2,opt,name=type,proto3" json:"type,omitempty"`
+	ParamsJson           string                 `protobuf:"bytes,3,opt,name=params_json,json=paramsJson,proto3" json:"params_json,omitempty"`
+	DependsOn            []string               `protobuf:"bytes,4,rep,name=depends_on,json=dependsOn,proto3" json:"depends_on,omitempty"`
+	Retry                int32                  `protobuf:"varint,5,opt,name=retry,proto3" json:"retry,omitempty"`
+	TimeoutMs            int64                  `protobuf:"varint,6,opt,name=timeout_ms,json=timeoutMs,proto3" json:"timeout_ms,omitempty"`
+	Status               string                 `protobuf:"bytes,7,opt,name=status,proto3" json:"status,omitempty"`
+	ResultJson           string                 `protobuf:"bytes,8,opt,name=result_json,json=resultJson,proto3" json:"result_json,omitempty"`
+	Error                string                 `protobuf:"bytes,9,opt,name=error,proto3" json:"error,omitempty"`
+	CreatedAtUnixMs      int64                  `protobuf:"varint,10,opt,name=created_at_unix_ms,json=createdAtUnixMs,proto3" json:"created_at_unix_ms,omitempty"`
+	UpdatedAtUnixMs      int64                  `protobuf:"varint,11,opt,name=updated_at_unix_ms,json=updatedAtUnixMs,proto3" json:"updated_at_unix_ms,omitempty"`
+	ToolName             string                 `protobuf:"bytes,12,opt,name=tool_name,json=toolName,proto3" json:"tool_name,omitempty"`
+	InputJson            string                 `protobuf:"bytes,13,opt,name=input_json,json=inputJson,proto3" json:"input_json,omitempty"`
+	ExecutionCategory    string                 `protobuf:"bytes,14,opt,name=execution_category,json=executionCategory,proto3" json:"execution_category,omitempty"`
+	Priority             int32                  `protobuf:"varint,15,opt,name=priority,proto3" json:"priority,omitempty"`
+	ScheduledAtUnixMs    int64                  `protobuf:"varint,16,opt,name=scheduled_at_unix_ms,json=scheduledAtUnixMs,proto3" json:"scheduled_at_unix_ms,omitempty"`
+	Version              int64                  `protobuf:"varint,17,opt,name=version,proto3" json:"version,omitempty"`
+	WorkflowId           string                 `protobuf:"bytes,18,opt,name=workflow_id,json=workflowId,proto3" json:"workflow_id,omitempty"`
+	Attempt              int32                  `protobuf:"varint,19,opt,name=attempt,proto3" json:"attempt,omitempty"`
+	HandleId             string                 `protobuf:"bytes,20,opt,name=handle_id,json=handleId,proto3" json:"handle_id,omitempty"`
+	RunStatus            string                 `protobuf:"bytes,21,opt,name=run_status,json=runStatus,proto3" json:"run_status,omitempty"`
+	RequiredCapabilities map[string]string      `protobuf:"bytes,22,rep,name=required_capabilities,json=requiredCapabilities,proto3" json:"required_capabilities,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
 func (x *Task) Reset() {
@@ -267,6 +268,13 @@ func (x *Task) GetRunStatus() string {
 		return x.RunStatus
 	}
 	return ""
+}
+
+func (x *Task) GetRequiredCapabilities() map[string]string {
+	if x != nil {
+		return x.RequiredCapabilities
+	}
+	return nil
 }
 
 type SubmitTasksResponse struct {
@@ -838,15 +846,16 @@ func (*MetricsRequest) Descriptor() ([]byte, []int) {
 }
 
 type MetricsResponse struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	TasksTotal     int64                  `protobuf:"varint,1,opt,name=tasks_total,json=tasksTotal,proto3" json:"tasks_total,omitempty"`
-	TasksRunning   int64                  `protobuf:"varint,2,opt,name=tasks_running,json=tasksRunning,proto3" json:"tasks_running,omitempty"`
-	TasksSucceeded int64                  `protobuf:"varint,3,opt,name=tasks_succeeded,json=tasksSucceeded,proto3" json:"tasks_succeeded,omitempty"`
-	TasksFailed    int64                  `protobuf:"varint,4,opt,name=tasks_failed,json=tasksFailed,proto3" json:"tasks_failed,omitempty"`
-	ByType         map[string]int64       `protobuf:"bytes,5,rep,name=by_type,json=byType,proto3" json:"by_type,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"`
-	TasksCancelled int64                  `protobuf:"varint,6,opt,name=tasks_cancelled,json=tasksCancelled,proto3" json:"tasks_cancelled,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	state                        protoimpl.MessageState `protogen:"open.v1"`
+	TasksTotal                   int64                  `protobuf:"varint,1,opt,name=tasks_total,json=tasksTotal,proto3" json:"tasks_total,omitempty"`
+	TasksRunning                 int64                  `protobuf:"varint,2,opt,name=tasks_running,json=tasksRunning,proto3" json:"tasks_running,omitempty"`
+	TasksSucceeded               int64                  `protobuf:"varint,3,opt,name=tasks_succeeded,json=tasksSucceeded,proto3" json:"tasks_succeeded,omitempty"`
+	TasksFailed                  int64                  `protobuf:"varint,4,opt,name=tasks_failed,json=tasksFailed,proto3" json:"tasks_failed,omitempty"`
+	ByType                       map[string]int64       `protobuf:"bytes,5,rep,name=by_type,json=byType,proto3" json:"by_type,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"`
+	TasksCancelled               int64                  `protobuf:"varint,6,opt,name=tasks_cancelled,json=tasksCancelled,proto3" json:"tasks_cancelled,omitempty"`
+	DispatchCapabilityMismatches int64                  `protobuf:"varint,7,opt,name=dispatch_capability_mismatches,json=dispatchCapabilityMismatches,proto3" json:"dispatch_capability_mismatches,omitempty"`
+	unknownFields                protoimpl.UnknownFields
+	sizeCache                    protoimpl.SizeCache
 }
 
 func (x *MetricsResponse) Reset() {
@@ -917,6 +926,13 @@ func (x *MetricsResponse) GetByType() map[string]int64 {
 func (x *MetricsResponse) GetTasksCancelled() int64 {
 	if x != nil {
 		return x.TasksCancelled
+	}
+	return 0
+}
+
+func (x *MetricsResponse) GetDispatchCapabilityMismatches() int64 {
+	if x != nil {
+		return x.DispatchCapabilityMismatches
 	}
 	return 0
 }
@@ -1863,7 +1879,7 @@ const file_proto_execgo_v1_execgo_proto_rawDesc = "" +
 	"\n" +
 	"\x1cproto/execgo/v1/execgo.proto\x12\texecgo.v1\"2\n" +
 	"\tTaskGraph\x12%\n" +
-	"\x05tasks\x18\x01 \x03(\v2\x0f.execgo.v1.TaskR\x05tasks\"\x91\x05\n" +
+	"\x05tasks\x18\x01 \x03(\v2\x0f.execgo.v1.TaskR\x05tasks\"\xba\x06\n" +
 	"\x04Task\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04type\x18\x02 \x01(\tR\x04type\x12\x1f\n" +
@@ -1893,7 +1909,11 @@ const file_proto_execgo_v1_execgo_proto_rawDesc = "" +
 	"\aattempt\x18\x13 \x01(\x05R\aattempt\x12\x1b\n" +
 	"\thandle_id\x18\x14 \x01(\tR\bhandleId\x12\x1d\n" +
 	"\n" +
-	"run_status\x18\x15 \x01(\tR\trunStatus\"L\n" +
+	"run_status\x18\x15 \x01(\tR\trunStatus\x12^\n" +
+	"\x15required_capabilities\x18\x16 \x03(\v2).execgo.v1.Task.RequiredCapabilitiesEntryR\x14requiredCapabilities\x1aG\n" +
+	"\x19RequiredCapabilitiesEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"L\n" +
 	"\x13SubmitTasksResponse\x12\x1a\n" +
 	"\baccepted\x18\x01 \x01(\x05R\baccepted\x12\x19\n" +
 	"\btask_ids\x18\x02 \x03(\tR\ataskIds\" \n" +
@@ -1922,7 +1942,7 @@ const file_proto_execgo_v1_execgo_proto_rawDesc = "" +
 	"\x06status\x18\x01 \x01(\tR\x06status\x12\x18\n" +
 	"\aversion\x18\x02 \x01(\tR\aversion\x12\x16\n" +
 	"\x06uptime\x18\x03 \x01(\tR\x06uptime\"\x10\n" +
-	"\x0eMetricsRequest\"\xc8\x02\n" +
+	"\x0eMetricsRequest\"\x8e\x03\n" +
 	"\x0fMetricsResponse\x12\x1f\n" +
 	"\vtasks_total\x18\x01 \x01(\x03R\n" +
 	"tasksTotal\x12#\n" +
@@ -1930,7 +1950,8 @@ const file_proto_execgo_v1_execgo_proto_rawDesc = "" +
 	"\x0ftasks_succeeded\x18\x03 \x01(\x03R\x0etasksSucceeded\x12!\n" +
 	"\ftasks_failed\x18\x04 \x01(\x03R\vtasksFailed\x12?\n" +
 	"\aby_type\x18\x05 \x03(\v2&.execgo.v1.MetricsResponse.ByTypeEntryR\x06byType\x12'\n" +
-	"\x0ftasks_cancelled\x18\x06 \x01(\x03R\x0etasksCancelled\x1a9\n" +
+	"\x0ftasks_cancelled\x18\x06 \x01(\x03R\x0etasksCancelled\x12D\n" +
+	"\x1edispatch_capability_mismatches\x18\a \x01(\x03R\x1cdispatchCapabilityMismatches\x1a9\n" +
 	"\vByTypeEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\x03R\x05value:\x028\x01\"\xcd\x01\n" +
@@ -2033,7 +2054,7 @@ func file_proto_execgo_v1_execgo_proto_rawDescGZIP() []byte {
 	return file_proto_execgo_v1_execgo_proto_rawDescData
 }
 
-var file_proto_execgo_v1_execgo_proto_msgTypes = make([]protoimpl.MessageInfo, 33)
+var file_proto_execgo_v1_execgo_proto_msgTypes = make([]protoimpl.MessageInfo, 34)
 var file_proto_execgo_v1_execgo_proto_goTypes = []any{
 	(*TaskGraph)(nil),                     // 0: execgo.v1.TaskGraph
 	(*Task)(nil),                          // 1: execgo.v1.Task
@@ -2066,51 +2087,53 @@ var file_proto_execgo_v1_execgo_proto_goTypes = []any{
 	(*ReportProgressResponse)(nil),        // 28: execgo.v1.ReportProgressResponse
 	(*ReportAuditRequest)(nil),            // 29: execgo.v1.ReportAuditRequest
 	(*ReportAuditResponse)(nil),           // 30: execgo.v1.ReportAuditResponse
-	nil,                                   // 31: execgo.v1.MetricsResponse.ByTypeEntry
-	nil,                                   // 32: execgo.v1.RegisterWorkerRequest.CapabilitiesEntry
+	nil,                                   // 31: execgo.v1.Task.RequiredCapabilitiesEntry
+	nil,                                   // 32: execgo.v1.MetricsResponse.ByTypeEntry
+	nil,                                   // 33: execgo.v1.RegisterWorkerRequest.CapabilitiesEntry
 }
 var file_proto_execgo_v1_execgo_proto_depIdxs = []int32{
 	1,  // 0: execgo.v1.TaskGraph.tasks:type_name -> execgo.v1.Task
-	1,  // 1: execgo.v1.GetTaskResponse.task:type_name -> execgo.v1.Task
-	1,  // 2: execgo.v1.ListTasksResponse.tasks:type_name -> execgo.v1.Task
-	31, // 3: execgo.v1.MetricsResponse.by_type:type_name -> execgo.v1.MetricsResponse.ByTypeEntry
-	32, // 4: execgo.v1.RegisterWorkerRequest.capabilities:type_name -> execgo.v1.RegisterWorkerRequest.CapabilitiesEntry
-	1,  // 5: execgo.v1.PollTaskResponse.task:type_name -> execgo.v1.Task
-	0,  // 6: execgo.v1.ExecGo.SubmitTasks:input_type -> execgo.v1.TaskGraph
-	3,  // 7: execgo.v1.ExecGo.GetTask:input_type -> execgo.v1.GetTaskRequest
-	5,  // 8: execgo.v1.ExecGo.ListTasks:input_type -> execgo.v1.ListTasksRequest
-	7,  // 9: execgo.v1.ExecGo.DeleteTask:input_type -> execgo.v1.DeleteTaskRequest
-	9,  // 10: execgo.v1.ExecGo.CancelTask:input_type -> execgo.v1.CancelTaskRequest
-	11, // 11: execgo.v1.ExecGo.Health:input_type -> execgo.v1.HealthRequest
-	13, // 12: execgo.v1.ExecGo.Metrics:input_type -> execgo.v1.MetricsRequest
-	15, // 13: execgo.v1.WorkerControl.RegisterWorker:input_type -> execgo.v1.RegisterWorkerRequest
-	17, // 14: execgo.v1.WorkerControl.Heartbeat:input_type -> execgo.v1.HeartbeatRequest
-	19, // 15: execgo.v1.WorkerControl.PollTask:input_type -> execgo.v1.PollTaskRequest
-	21, // 16: execgo.v1.WorkerControl.CheckTaskCancellation:input_type -> execgo.v1.CheckTaskCancellationRequest
-	23, // 17: execgo.v1.WorkerControl.AckTask:input_type -> execgo.v1.AckTaskRequest
-	25, // 18: execgo.v1.WorkerControl.NackTask:input_type -> execgo.v1.NackTaskRequest
-	27, // 19: execgo.v1.WorkerControl.ReportProgress:input_type -> execgo.v1.ReportProgressRequest
-	29, // 20: execgo.v1.WorkerControl.ReportAudit:input_type -> execgo.v1.ReportAuditRequest
-	2,  // 21: execgo.v1.ExecGo.SubmitTasks:output_type -> execgo.v1.SubmitTasksResponse
-	4,  // 22: execgo.v1.ExecGo.GetTask:output_type -> execgo.v1.GetTaskResponse
-	6,  // 23: execgo.v1.ExecGo.ListTasks:output_type -> execgo.v1.ListTasksResponse
-	8,  // 24: execgo.v1.ExecGo.DeleteTask:output_type -> execgo.v1.DeleteTaskResponse
-	10, // 25: execgo.v1.ExecGo.CancelTask:output_type -> execgo.v1.CancelTaskResponse
-	12, // 26: execgo.v1.ExecGo.Health:output_type -> execgo.v1.HealthResponse
-	14, // 27: execgo.v1.ExecGo.Metrics:output_type -> execgo.v1.MetricsResponse
-	16, // 28: execgo.v1.WorkerControl.RegisterWorker:output_type -> execgo.v1.RegisterWorkerResponse
-	18, // 29: execgo.v1.WorkerControl.Heartbeat:output_type -> execgo.v1.HeartbeatResponse
-	20, // 30: execgo.v1.WorkerControl.PollTask:output_type -> execgo.v1.PollTaskResponse
-	22, // 31: execgo.v1.WorkerControl.CheckTaskCancellation:output_type -> execgo.v1.CheckTaskCancellationResponse
-	24, // 32: execgo.v1.WorkerControl.AckTask:output_type -> execgo.v1.AckTaskResponse
-	26, // 33: execgo.v1.WorkerControl.NackTask:output_type -> execgo.v1.NackTaskResponse
-	28, // 34: execgo.v1.WorkerControl.ReportProgress:output_type -> execgo.v1.ReportProgressResponse
-	30, // 35: execgo.v1.WorkerControl.ReportAudit:output_type -> execgo.v1.ReportAuditResponse
-	21, // [21:36] is the sub-list for method output_type
-	6,  // [6:21] is the sub-list for method input_type
-	6,  // [6:6] is the sub-list for extension type_name
-	6,  // [6:6] is the sub-list for extension extendee
-	0,  // [0:6] is the sub-list for field type_name
+	31, // 1: execgo.v1.Task.required_capabilities:type_name -> execgo.v1.Task.RequiredCapabilitiesEntry
+	1,  // 2: execgo.v1.GetTaskResponse.task:type_name -> execgo.v1.Task
+	1,  // 3: execgo.v1.ListTasksResponse.tasks:type_name -> execgo.v1.Task
+	32, // 4: execgo.v1.MetricsResponse.by_type:type_name -> execgo.v1.MetricsResponse.ByTypeEntry
+	33, // 5: execgo.v1.RegisterWorkerRequest.capabilities:type_name -> execgo.v1.RegisterWorkerRequest.CapabilitiesEntry
+	1,  // 6: execgo.v1.PollTaskResponse.task:type_name -> execgo.v1.Task
+	0,  // 7: execgo.v1.ExecGo.SubmitTasks:input_type -> execgo.v1.TaskGraph
+	3,  // 8: execgo.v1.ExecGo.GetTask:input_type -> execgo.v1.GetTaskRequest
+	5,  // 9: execgo.v1.ExecGo.ListTasks:input_type -> execgo.v1.ListTasksRequest
+	7,  // 10: execgo.v1.ExecGo.DeleteTask:input_type -> execgo.v1.DeleteTaskRequest
+	9,  // 11: execgo.v1.ExecGo.CancelTask:input_type -> execgo.v1.CancelTaskRequest
+	11, // 12: execgo.v1.ExecGo.Health:input_type -> execgo.v1.HealthRequest
+	13, // 13: execgo.v1.ExecGo.Metrics:input_type -> execgo.v1.MetricsRequest
+	15, // 14: execgo.v1.WorkerControl.RegisterWorker:input_type -> execgo.v1.RegisterWorkerRequest
+	17, // 15: execgo.v1.WorkerControl.Heartbeat:input_type -> execgo.v1.HeartbeatRequest
+	19, // 16: execgo.v1.WorkerControl.PollTask:input_type -> execgo.v1.PollTaskRequest
+	21, // 17: execgo.v1.WorkerControl.CheckTaskCancellation:input_type -> execgo.v1.CheckTaskCancellationRequest
+	23, // 18: execgo.v1.WorkerControl.AckTask:input_type -> execgo.v1.AckTaskRequest
+	25, // 19: execgo.v1.WorkerControl.NackTask:input_type -> execgo.v1.NackTaskRequest
+	27, // 20: execgo.v1.WorkerControl.ReportProgress:input_type -> execgo.v1.ReportProgressRequest
+	29, // 21: execgo.v1.WorkerControl.ReportAudit:input_type -> execgo.v1.ReportAuditRequest
+	2,  // 22: execgo.v1.ExecGo.SubmitTasks:output_type -> execgo.v1.SubmitTasksResponse
+	4,  // 23: execgo.v1.ExecGo.GetTask:output_type -> execgo.v1.GetTaskResponse
+	6,  // 24: execgo.v1.ExecGo.ListTasks:output_type -> execgo.v1.ListTasksResponse
+	8,  // 25: execgo.v1.ExecGo.DeleteTask:output_type -> execgo.v1.DeleteTaskResponse
+	10, // 26: execgo.v1.ExecGo.CancelTask:output_type -> execgo.v1.CancelTaskResponse
+	12, // 27: execgo.v1.ExecGo.Health:output_type -> execgo.v1.HealthResponse
+	14, // 28: execgo.v1.ExecGo.Metrics:output_type -> execgo.v1.MetricsResponse
+	16, // 29: execgo.v1.WorkerControl.RegisterWorker:output_type -> execgo.v1.RegisterWorkerResponse
+	18, // 30: execgo.v1.WorkerControl.Heartbeat:output_type -> execgo.v1.HeartbeatResponse
+	20, // 31: execgo.v1.WorkerControl.PollTask:output_type -> execgo.v1.PollTaskResponse
+	22, // 32: execgo.v1.WorkerControl.CheckTaskCancellation:output_type -> execgo.v1.CheckTaskCancellationResponse
+	24, // 33: execgo.v1.WorkerControl.AckTask:output_type -> execgo.v1.AckTaskResponse
+	26, // 34: execgo.v1.WorkerControl.NackTask:output_type -> execgo.v1.NackTaskResponse
+	28, // 35: execgo.v1.WorkerControl.ReportProgress:output_type -> execgo.v1.ReportProgressResponse
+	30, // 36: execgo.v1.WorkerControl.ReportAudit:output_type -> execgo.v1.ReportAuditResponse
+	22, // [22:37] is the sub-list for method output_type
+	7,  // [7:22] is the sub-list for method input_type
+	7,  // [7:7] is the sub-list for extension type_name
+	7,  // [7:7] is the sub-list for extension extendee
+	0,  // [0:7] is the sub-list for field type_name
 }
 
 func init() { file_proto_execgo_v1_execgo_proto_init() }
@@ -2124,7 +2147,7 @@ func file_proto_execgo_v1_execgo_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_execgo_v1_execgo_proto_rawDesc), len(file_proto_execgo_v1_execgo_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   33,
+			NumMessages:   34,
 			NumExtensions: 0,
 			NumServices:   2,
 		},

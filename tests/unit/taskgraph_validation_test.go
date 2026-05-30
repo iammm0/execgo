@@ -55,6 +55,41 @@ func TestTaskGraphValidate(t *testing.T) {
 			}},
 			wantErr: false,
 		},
+		{
+			name: "valid required capabilities",
+			graph: models.TaskGraph{Tasks: []*models.Task{
+				{ID: "a", Type: "noop", RequiredCapabilities: map[string]string{"sandbox": "docker"}},
+			}},
+			wantErr: false,
+		},
+		{
+			name: "empty capability key",
+			graph: models.TaskGraph{Tasks: []*models.Task{
+				{ID: "a", Type: "noop", RequiredCapabilities: map[string]string{" ": "docker"}},
+			}},
+			wantErr: true,
+		},
+		{
+			name: "empty capability value",
+			graph: models.TaskGraph{Tasks: []*models.Task{
+				{ID: "a", Type: "noop", RequiredCapabilities: map[string]string{"sandbox": " "}},
+			}},
+			wantErr: true,
+		},
+		{
+			name: "executor capability mismatch",
+			graph: models.TaskGraph{Tasks: []*models.Task{
+				{ID: "a", Type: "noop", RequiredCapabilities: map[string]string{"executor": "os"}},
+			}},
+			wantErr: true,
+		},
+		{
+			name: "executor capability token match",
+			graph: models.TaskGraph{Tasks: []*models.Task{
+				{ID: "a", Type: "noop", RequiredCapabilities: map[string]string{"executor": "os, noop"}},
+			}},
+			wantErr: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -64,5 +99,27 @@ func TestTaskGraphValidate(t *testing.T) {
 				t.Fatalf("Validate() error=%v wantErr=%v", err, tt.wantErr)
 			}
 		})
+	}
+}
+
+func TestCapabilityValueMatches(t *testing.T) {
+	if !models.CapabilityValueMatches("os, noop", "noop") {
+		t.Fatal("expected comma-separated worker capability to match token")
+	}
+	if models.CapabilityValueMatches("os,noop", "http") {
+		t.Fatal("unexpected match for missing capability token")
+	}
+}
+
+func TestEffectiveCapabilityRequirements(t *testing.T) {
+	reqs := models.EffectiveCapabilityRequirements(&models.Task{
+		Type:                 "noop",
+		RequiredCapabilities: map[string]string{"sandbox": "docker"},
+	})
+	if reqs["executor"] != "noop" {
+		t.Fatalf("executor requirement=%q want noop", reqs["executor"])
+	}
+	if reqs["sandbox"] != "docker" {
+		t.Fatalf("sandbox requirement=%q want docker", reqs["sandbox"])
 	}
 }

@@ -98,6 +98,9 @@ func TestDistributedRuntime_RemoteWorkerEndToEndGRPC(t *testing.T) {
 				Type:      "noop",
 				DependsOn: []string{"dist-remote-first"},
 				Priority:  6,
+				RequiredCapabilities: map[string]string{
+					"sandbox": "local",
+				},
 			},
 		},
 	})
@@ -231,6 +234,106 @@ func TestDistributedRuntime_RemoteWorkerCancelGRPC(t *testing.T) {
 	}
 }
 
+func TestDistributedRuntime_RemoteWorkerCapabilityDispatchGRPC(t *testing.T) {
+	executor.RegisterBuiltins()
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	st, err := eventsourced.NewManager(events.NewMemoryStore(), logger)
+	if err != nil {
+		t.Fatalf("new event sourced manager: %v", err)
+	}
+	metrics := observability.NewMetrics()
+
+	runtimeCtx, runtimeCancel := context.WithCancel(context.Background())
+	defer runtimeCancel()
+
+	sched := scheduler.New(st, metrics, logger, 2)
+	sched.Start(runtimeCtx)
+	defer sched.Stop()
+
+	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen grpc: %v", err)
+	}
+	defer lis.Close()
+
+	grpcSrv := grpc.NewServer()
+	execgov1.RegisterExecGoServer(grpcSrv, grpcserver.NewServer(st, sched, metrics, logger))
+	execgov1.RegisterWorkerControlServer(grpcSrv, grpcserver.NewWorkerControlServer(st, sched, logger))
+	defer grpcSrv.GracefulStop()
+	go func() {
+		_ = grpcSrv.Serve(lis)
+	}()
+
+	conn, err := grpc.DialContext(context.Background(), lis.Addr().String(),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithBlock(),
+	)
+	if err != nil {
+		t.Fatalf("dial grpc server: %v", err)
+	}
+	defer conn.Close()
+	execClient := execgov1.NewExecGoClient(conn)
+
+	wrong := worker.NewRemoteGRPCWorker(worker.RemoteGRPCConfig{
+		Endpoint:          lis.Addr().String(),
+		WorkerID:          "remote-worker-mcp-only",
+		Capabilities:      map[string]string{"executor": "mcp", "sandbox": "local"},
+		Concurrency:       1,
+		PollWait:          40 * time.Millisecond,
+		HeartbeatInterval: 100 * time.Millisecond,
+	}, logger)
+	if err := wrong.Start(runtimeCtx); err != nil {
+		t.Fatalf("start wrong remote worker: %v", err)
+	}
+	defer func() {
+		if stopErr := wrong.Stop(); stopErr != nil {
+			t.Fatalf("stop wrong worker: %v", stopErr)
+		}
+	}()
+
+	matching := worker.NewRemoteGRPCWorker(worker.RemoteGRPCConfig{
+		Endpoint:          lis.Addr().String(),
+		WorkerID:          "remote-worker-os",
+		Capabilities:      map[string]string{"executor": "os", "sandbox": "local"},
+		Concurrency:       1,
+		PollWait:          40 * time.Millisecond,
+		HeartbeatInterval: 100 * time.Millisecond,
+	}, logger)
+	if err := matching.Start(runtimeCtx); err != nil {
+		t.Fatalf("start matching remote worker: %v", err)
+	}
+	defer func() {
+		if stopErr := matching.Stop(); stopErr != nil {
+			t.Fatalf("stop matching worker: %v", stopErr)
+		}
+	}()
+
+	_, err = execClient.SubmitTasks(context.Background(), &execgov1.TaskGraph{
+		Tasks: []*execgov1.Task{{
+			Id:                   "remote-cap-os",
+			Type:                 "os",
+			ToolName:             "noop",
+			RequiredCapabilities: map[string]string{"sandbox": "local"},
+			Priority:             6,
+		}},
+	})
+	if err != nil {
+		t.Fatalf("submit capability task: %v", err)
+	}
+
+	task := waitTaskByGRPC(t, execClient, "remote-cap-os", 6*time.Second)
+	if task.GetStatus() != string(models.StatusSuccess) {
+		t.Fatalf("status=%s want success", task.GetStatus())
+	}
+	if task.GetRequiredCapabilities()["sandbox"] != "local" {
+		t.Fatalf("required_capabilities=%v want sandbox=local", task.GetRequiredCapabilities())
+	}
+	if workerID := firstRemoteTaskStartedWorker(t, st, "remote-cap-os"); workerID != "remote-worker-os" {
+		t.Fatalf("task_started worker=%q want remote-worker-os", workerID)
+	}
+}
+
 func waitTaskByGRPC(t *testing.T, client execgov1.ExecGoClient, taskID string, timeout time.Duration) *execgov1.Task {
 	t.Helper()
 
@@ -258,6 +361,21 @@ func waitTaskByGRPC(t *testing.T, client execgov1.ExecGoClient, taskID string, t
 
 	t.Fatalf("task %s did not become terminal within %v", taskID, timeout)
 	return nil
+}
+
+func firstRemoteTaskStartedWorker(t *testing.T, st *eventsourced.Manager, taskID string) string {
+	t.Helper()
+	evs, err := st.EventStore().LoadGlobal(context.Background(), 0, 0)
+	if err != nil {
+		t.Fatalf("load events: %v", err)
+	}
+	for _, ev := range evs {
+		if ev.AggregateID == taskID && ev.Type == models.RuntimeEventStarted {
+			return ev.Metadata.WorkerID
+		}
+	}
+	t.Fatalf("task_started event not found for %s", taskID)
+	return ""
 }
 
 func waitTaskStatusByGRPC(t *testing.T, client execgov1.ExecGoClient, taskID string, want models.TaskStatus, timeout time.Duration) *execgov1.Task {

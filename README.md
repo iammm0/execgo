@@ -219,6 +219,37 @@ curl -X POST http://localhost:8080/queue/dead/requeue \
   -d '{"message_id":"execgo:dead|1710000000000-0","delay_ms":0}'
 ```
 
+### 能力感知调度 | Capability-aware Dispatch
+
+分布式 worker 注册时会上报 capabilities，例如本地内置 worker 默认包含：
+
+```json
+{
+  "executor": "cli-skills,dns,file,http,mcp,noop,os,shell,sleep,tcp",
+  "sandbox": "local"
+}
+```
+
+任务会隐式要求 `executor=<task.type>`，并可通过 `required_capabilities` 增加约束：
+
+```bash
+curl -X POST http://localhost:8080/tasks \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tasks": [
+      {
+        "id": "docker-only",
+        "type": "os",
+        "tool_name": "shell",
+        "params": {"command": "echo hello"},
+        "required_capabilities": {"sandbox": "docker"}
+      }
+    ]
+  }'
+```
+
+worker capability value 支持逗号分隔 token，例如 `executor=os,noop` 可匹配 `os` 或 `noop` 任务。若 worker 不满足任务需求，control plane 不会 lease 该任务，而是短暂 requeue；因此 `/queue` depth 可能短暂包含正在等待合适 worker 的任务。
+
 取消采用状态优先语义：已经在 ready/delayed queue 中的取消任务不会立即从队列物理删除，后续 worker 取到后会直接 ack 且不会执行。因此 `/queue` 的 depth 可能短暂包含已取消但尚未被 worker 清理的消息。
 
 ---

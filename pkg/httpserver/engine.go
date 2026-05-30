@@ -410,15 +410,16 @@ func (e *Engine) handleHealth(w http.ResponseWriter, r *http.Request) {
 func (e *Engine) handleMetrics(w http.ResponseWriter, r *http.Request) {
 	ready, delayed, dead := e.queueDepthSnapshot(r.Context())
 	writeJSON(w, http.StatusOK, models.MetricsResponse{
-		TasksTotal:     e.metrics.TasksTotal.Load(),
-		TasksRunning:   e.metrics.TasksRunning.Load(),
-		TasksSucceeded: e.metrics.TasksSucceeded.Load(),
-		TasksFailed:    e.metrics.TasksFailed.Load(),
-		TasksCancelled: e.metrics.TasksCancelled.Load(),
-		ByType:         e.metrics.Snapshot(),
-		QueueReady:     ready,
-		QueueDelayed:   delayed,
-		QueueDead:      dead,
+		TasksTotal:                   e.metrics.TasksTotal.Load(),
+		TasksRunning:                 e.metrics.TasksRunning.Load(),
+		TasksSucceeded:               e.metrics.TasksSucceeded.Load(),
+		TasksFailed:                  e.metrics.TasksFailed.Load(),
+		TasksCancelled:               e.metrics.TasksCancelled.Load(),
+		DispatchCapabilityMismatches: e.metrics.DispatchCapabilityMismatches.Load(),
+		ByType:                       e.metrics.Snapshot(),
+		QueueReady:                   ready,
+		QueueDelayed:                 delayed,
+		QueueDead:                    dead,
 	})
 }
 

@@ -61,6 +61,7 @@ func TestPrometheusEndpointCompatibility(t *testing.T) {
 
 	base.Metrics.TasksTotal.Add(2)
 	base.Metrics.TasksSucceeded.Add(1)
+	base.Metrics.DispatchCapabilityMismatches.Add(1)
 	base.Metrics.IncType("noop")
 
 	res, err := http.Get(server.URL + "/metrics/prometheus")
@@ -79,6 +80,9 @@ func TestPrometheusEndpointCompatibility(t *testing.T) {
 	}
 	if !strings.Contains(content, "task_type=\"noop\"") {
 		t.Fatalf("expected task_type label for noop metric, got body=%s", content)
+	}
+	if !strings.Contains(content, "execgo_dispatch_capability_mismatches_total") {
+		t.Fatalf("expected dispatch capability mismatch metric, got body=%s", content)
 	}
 }
 

@@ -108,11 +108,10 @@ func (e *asyncHandleExecutor) HealthCheck() error                 { return nil }
 func (e *asyncHandleExecutor) Shutdown(ctx context.Context) error { return nil }
 
 func TestScheduler_RetryThenSuccess(t *testing.T) {
-	rt := testutil.NewRuntime(t, 2)
-
 	taskType := fmt.Sprintf("flaky-%d", time.Now().UnixNano())
 	flaky := &flakyExecutor{taskType: taskType, failTimes: 1}
 	executor.Register(flaky)
+	rt := testutil.NewRuntime(t, 2)
 
 	rt.Scheduler.Submit(&models.TaskGraph{
 		Tasks: []*models.Task{
@@ -142,11 +141,11 @@ func TestScheduler_RetryThenSuccess(t *testing.T) {
 }
 
 func TestScheduler_FailurePropagatesSkip(t *testing.T) {
-	rt := testutil.NewRuntime(t, 2)
 	executor.RegisterBuiltins()
 
 	taskType := fmt.Sprintf("fail-%d", time.Now().UnixNano())
 	executor.Register(&failExecutor{taskType: taskType})
+	rt := testutil.NewRuntime(t, 2)
 
 	rt.Scheduler.Submit(&models.TaskGraph{
 		Tasks: []*models.Task{
@@ -187,7 +186,6 @@ func TestScheduler_FailurePropagatesSkip(t *testing.T) {
 }
 
 func TestScheduler_AsyncHandleBlocksDependentsUntilTerminal(t *testing.T) {
-	rt := testutil.NewRuntime(t, 2)
 	executor.RegisterBuiltins()
 
 	taskType := fmt.Sprintf("async-%d", time.Now().UnixNano())
@@ -196,6 +194,7 @@ func TestScheduler_AsyncHandleBlocksDependentsUntilTerminal(t *testing.T) {
 		handles:  make(map[string]*executor.Result),
 	}
 	executor.Register(asyncExec)
+	rt := testutil.NewRuntime(t, 2)
 
 	rt.Scheduler.Submit(&models.TaskGraph{
 		Tasks: []*models.Task{

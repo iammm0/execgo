@@ -126,6 +126,26 @@ func RegisteredTypes() []string {
 	return types
 }
 
+// AcceptedTaskTypes returns registry names plus legacy OS tool task types that
+// NormalizeTask can route through the os executor.
+func AcceptedTaskTypes() []string {
+	seen := make(map[string]struct{})
+	for _, typ := range RegisteredTypes() {
+		seen[typ] = struct{}{}
+	}
+	if tools, err := NewOSExecutor().ListTools(context.Background()); err == nil {
+		for _, tool := range tools {
+			seen[tool.Name] = struct{}{}
+		}
+	}
+	out := make([]string, 0, len(seen))
+	for typ := range seen {
+		out = append(out, typ)
+	}
+	sort.Strings(out)
+	return out
+}
+
 // RegisterBuiltins 注册所有内置执行器 / registers all built-in executors.
 func RegisterBuiltins() {
 	Register(NewOSExecutor())

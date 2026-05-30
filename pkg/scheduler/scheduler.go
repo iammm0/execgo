@@ -48,6 +48,11 @@ var (
 
 const defaultCancelReason = "user_requested"
 
+const (
+	defaultCapabilityMismatchRequeueDelay = 100 * time.Millisecond
+	defaultMaxCapabilityPollSkips         = 16
+)
+
 // RecoveryConfig controls lease recovery and worker stale detection.
 type RecoveryConfig struct {
 	Enabled            bool
@@ -70,6 +75,14 @@ type CancelResult struct {
 	Status         models.TaskStatus `json:"status"`
 	PreviousStatus models.TaskStatus `json:"previous_status,omitempty"`
 	Reason         string            `json:"reason,omitempty"`
+}
+
+// Dispatch is a queue message that has been assigned and leased to a worker.
+type Dispatch struct {
+	Message    *taskqueue.Message
+	Task       *models.Task
+	Attempt    int
+	LeaseUntil time.Time
 }
 
 // DefaultRecoveryConfig returns production-safe recovery defaults.
@@ -161,6 +174,91 @@ func (s *Scheduler) Queue() taskqueue.Queue {
 	return s.queue
 }
 
+// PollAssignable returns the next task that the worker is allowed to execute.
+func (s *Scheduler) PollAssignable(ctx context.Context, workerID string, wait time.Duration, leaseDuration time.Duration) (*Dispatch, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if s.queue == nil {
+		return nil, fmt.Errorf("scheduler queue is unavailable")
+	}
+	if leaseDuration <= 0 {
+		leaseDuration = 30 * time.Second
+	}
+	if wait < 0 {
+		wait = 0
+	}
+
+	workerCaps, ok := s.dispatchWorkerCapabilities(workerID)
+	if !ok {
+		return nil, nil
+	}
+
+	deadline := time.Now().Add(wait)
+	skips := 0
+	for {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		pollWait := wait
+		if wait > 0 {
+			pollWait = time.Until(deadline)
+			if pollWait <= 0 {
+				return nil, nil
+			}
+		}
+
+		msg, err := s.queue.Poll(ctx, workerID, pollWait)
+		if err != nil {
+			return nil, err
+		}
+		if msg == nil {
+			return nil, nil
+		}
+
+		task, found := s.state.Get(msg.TaskID)
+		if !found || task.Status.IsTerminal() {
+			if err := s.queue.Ack(ctx, workerID, msg.MessageID); err != nil {
+				return nil, err
+			}
+			continue
+		}
+
+		if !s.capabilitiesMatch(workerCaps, task) {
+			s.metrics.DispatchCapabilityMismatches.Add(1)
+			requeueAt := time.Now().UTC().Add(defaultCapabilityMismatchRequeueDelay)
+			if err := s.queue.Nack(ctx, workerID, msg.MessageID, requeueAt, false); err != nil {
+				return nil, err
+			}
+			skips++
+			if skips >= defaultMaxCapabilityPollSkips {
+				return nil, nil
+			}
+			continue
+		}
+
+		attempt := msg.Attempt
+		if attempt <= 0 {
+			attempt = 1
+		}
+		leaseUntil := time.Now().UTC().Add(leaseDuration)
+		s.OnTaskLeased(task.ID, workerID, leaseUntil, attempt)
+		leasedTask, ok := s.state.Get(task.ID)
+		if !ok || leasedTask.Status.IsTerminal() {
+			if err := s.queue.Ack(ctx, workerID, msg.MessageID); err != nil {
+				return nil, err
+			}
+			continue
+		}
+		return &Dispatch{
+			Message:    msg,
+			Task:       leasedTask,
+			Attempt:    attempt,
+			LeaseUntil: leaseUntil,
+		}, nil
+	}
+}
+
 // RegisterInFlight records a cancellable running task context.
 func (s *Scheduler) RegisterInFlight(taskID string, cancel context.CancelFunc) func() {
 	if taskID == "" || cancel == nil {
@@ -250,6 +348,44 @@ func (s *Scheduler) cancelInFlight(taskID string) {
 	if cancel != nil {
 		cancel()
 	}
+}
+
+func (s *Scheduler) dispatchWorkerCapabilities(workerID string) (map[string]string, bool) {
+	if s.evented == nil {
+		return nil, true
+	}
+	workerID = strings.TrimSpace(workerID)
+	if workerID == "" {
+		return nil, false
+	}
+	for _, worker := range s.evented.ListWorkers() {
+		if worker == nil || worker.ID != workerID {
+			continue
+		}
+		if worker.Status != "online" {
+			return nil, false
+		}
+		caps := make(map[string]string, len(worker.Capabilities))
+		for k, v := range worker.Capabilities {
+			caps[strings.TrimSpace(k)] = strings.TrimSpace(v)
+		}
+		return caps, true
+	}
+	return nil, false
+}
+
+func (s *Scheduler) capabilitiesMatch(workerCaps map[string]string, task *models.Task) bool {
+	if s.evented == nil {
+		return true
+	}
+	requirements := models.EffectiveCapabilityRequirements(task)
+	for key, required := range requirements {
+		workerValue, ok := workerCaps[key]
+		if !ok || !models.CapabilityValueMatches(workerValue, required) {
+			return false
+		}
+	}
+	return true
 }
 
 // RecoverExpiredLeases requeues expired leases and marks stale workers.

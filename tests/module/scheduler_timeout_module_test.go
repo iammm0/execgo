@@ -30,9 +30,9 @@ func (e *timeoutExecutor) Execute(ctx context.Context, task *models.Task) (*exec
 }
 
 func TestScheduler_TimeoutProducesStructuredRuntimeError(t *testing.T) {
-	rt := testutil.NewRuntime(t, 1)
 	taskType := fmt.Sprintf("timeout-%d", time.Now().UnixNano())
 	executor.Register(&timeoutExecutor{taskType: taskType})
+	rt := testutil.NewRuntime(t, 1)
 
 	rt.Scheduler.Submit(&models.TaskGraph{
 		Tasks: []*models.Task{

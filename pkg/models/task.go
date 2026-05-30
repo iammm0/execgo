@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -45,6 +46,8 @@ type Task struct {
 	ToolName   string          `json:"tool_name,omitempty"`
 	Input      json.RawMessage `json:"input,omitempty"`
 	Category   string          `json:"execution_category,omitempty"` // mcp | cli-skills | os | plugin
+	// RequiredCapabilities declares extra worker capabilities required to run this task.
+	RequiredCapabilities map[string]string `json:"required_capabilities,omitempty"`
 
 	DependsOn      []string `json:"depends_on,omitempty"`
 	CompensateWith []string `json:"compensate_with,omitempty"`
@@ -108,6 +111,9 @@ func (g *TaskGraph) Validate() error {
 		if t.Timeout < 0 {
 			return fmt.Errorf("task %q: timeout cannot be negative", t.ID)
 		}
+		if err := validateRequiredCapabilities(t); err != nil {
+			return fmt.Errorf("task %q: %w", t.ID, err)
+		}
 	}
 
 	for _, t := range g.Tasks {
@@ -133,6 +139,59 @@ func (g *TaskGraph) Validate() error {
 		return err
 	}
 
+	return nil
+}
+
+// EffectiveCapabilityRequirements returns the strict dispatch requirements for task.
+// Every task implicitly requires an executor capability matching its task type.
+func EffectiveCapabilityRequirements(task *Task) map[string]string {
+	if task == nil {
+		return nil
+	}
+	out := make(map[string]string, len(task.RequiredCapabilities)+1)
+	for k, v := range task.RequiredCapabilities {
+		key := strings.TrimSpace(k)
+		val := strings.TrimSpace(v)
+		if key == "" || val == "" {
+			continue
+		}
+		out[key] = val
+	}
+	if task.Type != "" {
+		out["executor"] = task.Type
+	}
+	return out
+}
+
+// CapabilityValueMatches reports whether workerValue satisfies requiredValue.
+// Worker values may be comma-separated tokens, e.g. "os,noop".
+func CapabilityValueMatches(workerValue, requiredValue string) bool {
+	requiredValue = strings.TrimSpace(requiredValue)
+	if requiredValue == "" {
+		return false
+	}
+	for _, token := range strings.Split(workerValue, ",") {
+		if strings.TrimSpace(token) == requiredValue {
+			return true
+		}
+	}
+	return false
+}
+
+func validateRequiredCapabilities(task *Task) error {
+	for k, v := range task.RequiredCapabilities {
+		key := strings.TrimSpace(k)
+		val := strings.TrimSpace(v)
+		if key == "" {
+			return fmt.Errorf("required_capabilities key cannot be empty")
+		}
+		if val == "" {
+			return fmt.Errorf("required_capabilities[%q] cannot be empty", key)
+		}
+		if key == "executor" && !CapabilityValueMatches(val, task.Type) {
+			return fmt.Errorf("required_capabilities[\"executor\"] must include task type %q", task.Type)
+		}
+	}
 	return nil
 }
 
@@ -202,15 +261,16 @@ type HealthResponse struct {
 
 // MetricsResponse is legacy JSON metrics payload.
 type MetricsResponse struct {
-	TasksTotal     int64            `json:"tasks_total"`
-	TasksRunning   int64            `json:"tasks_running"`
-	TasksSucceeded int64            `json:"tasks_succeeded"`
-	TasksFailed    int64            `json:"tasks_failed"`
-	TasksCancelled int64            `json:"tasks_cancelled"`
-	ByType         map[string]int64 `json:"by_type"`
-	QueueReady     int64            `json:"queue_ready"`
-	QueueDelayed   int64            `json:"queue_delayed"`
-	QueueDead      int64            `json:"queue_dead"`
+	TasksTotal                   int64            `json:"tasks_total"`
+	TasksRunning                 int64            `json:"tasks_running"`
+	TasksSucceeded               int64            `json:"tasks_succeeded"`
+	TasksFailed                  int64            `json:"tasks_failed"`
+	TasksCancelled               int64            `json:"tasks_cancelled"`
+	DispatchCapabilityMismatches int64            `json:"dispatch_capability_mismatches"`
+	ByType                       map[string]int64 `json:"by_type"`
+	QueueReady                   int64            `json:"queue_ready"`
+	QueueDelayed                 int64            `json:"queue_delayed"`
+	QueueDead                    int64            `json:"queue_dead"`
 }
 
 // WorkerNode tracks worker liveness/capabilities.

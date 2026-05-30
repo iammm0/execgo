@@ -55,6 +55,7 @@ message Task {
   int32 attempt = 19;
   string handle_id = 20;
   string run_status = 21;
+  map<string, string> required_capabilities = 22;
 }
 
 message SubmitTasksResponse {
@@ -114,6 +115,7 @@ message MetricsResponse {
   int64 tasks_failed = 4;
   map<string, int64> by_type = 5;
   int64 tasks_cancelled = 6;
+  int64 dispatch_capability_mismatches = 7;
 }
 
 message RegisterWorkerRequest {

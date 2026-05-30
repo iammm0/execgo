@@ -81,37 +81,20 @@ func (w *WorkerControlServer) PollTask(ctx context.Context, req *execgov1.PollTa
 	if req.GetWaitMs() > 0 {
 		wait = time.Duration(req.GetWaitMs()) * time.Millisecond
 	}
-	msg, err := w.sched.Queue().Poll(ctx, req.GetWorkerId(), wait)
+	dispatch, err := w.sched.PollAssignable(ctx, req.GetWorkerId(), wait, w.leaseDuration)
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
-	if msg == nil {
+	if dispatch == nil || dispatch.Message == nil || dispatch.Task == nil {
 		return &execgov1.PollTaskResponse{Found: false}, nil
 	}
-
-	task, ok := w.state.Get(msg.TaskID)
-	if !ok {
-		_ = w.sched.Queue().Ack(ctx, req.GetWorkerId(), msg.MessageID)
-		return &execgov1.PollTaskResponse{Found: false}, nil
-	}
-	if task.Status.IsTerminal() {
-		_ = w.sched.Queue().Ack(ctx, req.GetWorkerId(), msg.MessageID)
-		return &execgov1.PollTaskResponse{Found: false}, nil
-	}
-
-	attempt := msg.Attempt
-	if attempt <= 0 {
-		attempt = 1
-	}
-	leaseUntil := time.Now().UTC().Add(w.leaseDuration)
-	w.sched.OnTaskLeased(task.ID, req.GetWorkerId(), leaseUntil, attempt)
 
 	return &execgov1.PollTaskResponse{
 		Found:            true,
-		QueueMessageId:   msg.MessageID,
-		Task:             taskToProto(task),
-		Attempt:          int32(attempt),
-		LeaseUntilUnixMs: leaseUntil.UnixMilli(),
+		QueueMessageId:   dispatch.Message.MessageID,
+		Task:             taskToProto(dispatch.Task),
+		Attempt:          int32(dispatch.Attempt),
+		LeaseUntilUnixMs: dispatch.LeaseUntil.UnixMilli(),
 	}, nil
 }
 
