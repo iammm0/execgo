@@ -41,6 +41,8 @@ func main() {
 		"queue", cfg.QueueBackend,
 		"worker_id", cfg.WorkerID,
 		"worker_concurrency", cfg.WorkerConcurrency,
+		"lease_sweep_seconds", cfg.LeaseSweepSeconds,
+		"worker_stale_seconds", cfg.WorkerStaleSeconds,
 		"sandbox", cfg.SandboxMode,
 	)
 
@@ -86,7 +88,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	sched := scheduler.NewWithQueue(stateManager, metrics, logger, queue)
+	sched := scheduler.NewWithQueueAndRecovery(stateManager, metrics, logger, queue, scheduler.RecoveryConfig{
+		Enabled:            true,
+		LeaseSweepInterval: time.Duration(cfg.LeaseSweepSeconds) * time.Second,
+		WorkerStaleAfter:   time.Duration(cfg.WorkerStaleSeconds) * time.Second,
+		MaxRecoverBatch:    100,
+	})
 	sched.Start(rootCtx)
 
 	runner := initSandboxRunner(cfg)
@@ -180,11 +187,13 @@ func initQueue(cfg *config.Config, logger *slog.Logger) (taskqueue.Queue, error)
 	switch cfg.QueueBackend {
 	case "redis":
 		q, err := taskqueue.NewRedisQueue(taskqueue.RedisConfig{
-			Addr:     cfg.RedisAddr,
-			Password: cfg.RedisPassword,
-			DB:       cfg.RedisDB,
-			Prefix:   cfg.RedisPrefix,
-			Group:    cfg.RedisGroup,
+			Addr:         cfg.RedisAddr,
+			Password:     cfg.RedisPassword,
+			DB:           cfg.RedisDB,
+			Prefix:       cfg.RedisPrefix,
+			Group:        cfg.RedisGroup,
+			ClaimMinIdle: time.Duration(cfg.RedisClaimMinIdleSeconds) * time.Second,
+			ClaimBatch:   int64(cfg.RedisClaimBatch),
 		})
 		if err != nil {
 			return nil, err

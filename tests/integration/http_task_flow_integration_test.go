@@ -2,6 +2,7 @@ package integration_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"testing"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/iammm0/execgo/pkg/executor"
 	"github.com/iammm0/execgo/pkg/models"
+	"github.com/iammm0/execgo/pkg/taskqueue"
 	"github.com/iammm0/execgo/tests/testutil"
 )
 
@@ -113,6 +115,58 @@ func TestHTTPTaskFlow_SubmitThenQueryStatus(t *testing.T) {
 	if len(eventsPayload.Events) == 0 {
 		t.Fatal("expected /events to expose runtime events")
 	}
+
+	deadMessageID := seedDeadQueueMessage(t, rt.Scheduler.Queue())
+	queueResp, err := client.Get(srv.URL + "/queue")
+	if err != nil {
+		t.Fatalf("GET /queue error: %v", err)
+	}
+	defer queueResp.Body.Close()
+	if queueResp.StatusCode != http.StatusOK {
+		t.Fatalf("GET /queue status=%d want=%d", queueResp.StatusCode, http.StatusOK)
+	}
+	var queueDepth struct {
+		Ready   int64 `json:"ready"`
+		Delayed int64 `json:"delayed"`
+		Dead    int64 `json:"dead"`
+	}
+	if err := json.NewDecoder(queueResp.Body).Decode(&queueDepth); err != nil {
+		t.Fatalf("decode queue depth: %v", err)
+	}
+	if queueDepth.Dead == 0 {
+		t.Fatalf("expected dead queue depth > 0, got %+v", queueDepth)
+	}
+
+	deadResp, err := client.Get(srv.URL + "/queue/dead?limit=10")
+	if err != nil {
+		t.Fatalf("GET /queue/dead error: %v", err)
+	}
+	defer deadResp.Body.Close()
+	if deadResp.StatusCode != http.StatusOK {
+		t.Fatalf("GET /queue/dead status=%d want=%d", deadResp.StatusCode, http.StatusOK)
+	}
+	var deadPayload struct {
+		Messages []taskqueue.Message `json:"messages"`
+	}
+	if err := json.NewDecoder(deadResp.Body).Decode(&deadPayload); err != nil {
+		t.Fatalf("decode dead queue: %v", err)
+	}
+	if len(deadPayload.Messages) == 0 || deadPayload.Messages[0].MessageID != deadMessageID {
+		t.Fatalf("expected seeded dead message %q, got %+v", deadMessageID, deadPayload.Messages)
+	}
+
+	requeueBody, err := json.Marshal(map[string]any{"message_id": deadMessageID, "delay_ms": 0})
+	if err != nil {
+		t.Fatalf("marshal requeue body: %v", err)
+	}
+	requeueResp, err := client.Post(srv.URL+"/queue/dead/requeue", "application/json", bytes.NewReader(requeueBody))
+	if err != nil {
+		t.Fatalf("POST /queue/dead/requeue error: %v", err)
+	}
+	defer requeueResp.Body.Close()
+	if requeueResp.StatusCode != http.StatusAccepted {
+		t.Fatalf("POST /queue/dead/requeue status=%d want=%d", requeueResp.StatusCode, http.StatusAccepted)
+	}
 }
 
 func TestMCPHTTPFlow_ListCallPoll(t *testing.T) {
@@ -169,6 +223,96 @@ func TestMCPHTTPFlow_ListCallPoll(t *testing.T) {
 	}
 }
 
+func TestQueueOpsEndpoints_DeadLetterRequeue(t *testing.T) {
+	executor.RegisterBuiltins()
+	rt := testutil.NewRuntime(t, 1)
+	rt.Worker.Stop()
+	srv := testutil.NewHTTPServer(t, rt)
+	client := srv.Client()
+	ctx := t.Context()
+
+	q := rt.Scheduler.Queue()
+	if err := q.Enqueue(ctx, "dead-http-task", 5, 1); err != nil {
+		t.Fatalf("enqueue: %v", err)
+	}
+	msg, err := q.Poll(ctx, "ops-worker", time.Second)
+	if err != nil {
+		t.Fatalf("poll: %v", err)
+	}
+	if msg == nil {
+		t.Fatal("expected queued message")
+	}
+	if err := q.Nack(ctx, "ops-worker", msg.MessageID, time.Time{}, true); err != nil {
+		t.Fatalf("dead-letter nack: %v", err)
+	}
+
+	depthResp, err := client.Get(srv.URL + "/queue")
+	if err != nil {
+		t.Fatalf("GET /queue error: %v", err)
+	}
+	defer depthResp.Body.Close()
+	if depthResp.StatusCode != http.StatusOK {
+		t.Fatalf("GET /queue status=%d want=%d", depthResp.StatusCode, http.StatusOK)
+	}
+	var depth map[string]int64
+	if err := json.NewDecoder(depthResp.Body).Decode(&depth); err != nil {
+		t.Fatalf("decode queue depth: %v", err)
+	}
+	if depth["dead"] != 1 {
+		t.Fatalf("dead depth=%d want 1", depth["dead"])
+	}
+
+	deadResp, err := client.Get(srv.URL + "/queue/dead?limit=10")
+	if err != nil {
+		t.Fatalf("GET /queue/dead error: %v", err)
+	}
+	defer deadResp.Body.Close()
+	if deadResp.StatusCode != http.StatusOK {
+		t.Fatalf("GET /queue/dead status=%d want=%d", deadResp.StatusCode, http.StatusOK)
+	}
+	var deadPayload struct {
+		Messages []struct {
+			MessageID string `json:"message_id"`
+			TaskID    string `json:"task_id"`
+		} `json:"messages"`
+	}
+	if err := json.NewDecoder(deadResp.Body).Decode(&deadPayload); err != nil {
+		t.Fatalf("decode dead messages: %v", err)
+	}
+	if len(deadPayload.Messages) != 1 || deadPayload.Messages[0].TaskID != "dead-http-task" {
+		t.Fatalf("unexpected dead payload: %+v", deadPayload)
+	}
+
+	requeueBody, err := json.Marshal(map[string]any{
+		"message_id": deadPayload.Messages[0].MessageID,
+		"delay_ms":   0,
+	})
+	if err != nil {
+		t.Fatalf("marshal requeue: %v", err)
+	}
+	req, err := http.NewRequest(http.MethodPost, srv.URL+"/queue/dead/requeue", bytes.NewReader(requeueBody))
+	if err != nil {
+		t.Fatalf("new requeue request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	requeueResp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("POST /queue/dead/requeue error: %v", err)
+	}
+	defer requeueResp.Body.Close()
+	if requeueResp.StatusCode != http.StatusAccepted {
+		t.Fatalf("POST /queue/dead/requeue status=%d want=%d", requeueResp.StatusCode, http.StatusAccepted)
+	}
+
+	ready, _, dead, err := q.Depth(ctx)
+	if err != nil {
+		t.Fatalf("depth after requeue: %v", err)
+	}
+	if ready != 1 || dead != 0 {
+		t.Fatalf("after requeue ready=%d dead=%d want 1/0", ready, dead)
+	}
+}
+
 func pollTaskByHTTP(t *testing.T, client *http.Client, baseURL, taskID string, timeout time.Duration) *models.Task {
 	t.Helper()
 	deadline := time.Now().Add(timeout)
@@ -188,4 +332,23 @@ func pollTaskByHTTP(t *testing.T, client *http.Client, baseURL, taskID string, t
 	}
 	t.Fatalf("task %s not terminal within %v", taskID, timeout)
 	return nil
+}
+
+func seedDeadQueueMessage(t *testing.T, q taskqueue.Queue) string {
+	t.Helper()
+	ctx := context.Background()
+	if err := q.Enqueue(ctx, "dead-http", 5, 1); err != nil {
+		t.Fatalf("enqueue dead seed: %v", err)
+	}
+	msg, err := q.Poll(ctx, "dead-seed-worker", time.Second)
+	if err != nil {
+		t.Fatalf("poll dead seed: %v", err)
+	}
+	if msg == nil {
+		t.Fatal("expected seed queue message")
+	}
+	if err := q.Nack(ctx, "dead-seed-worker", msg.MessageID, time.Time{}, true); err != nil {
+		t.Fatalf("dead-letter seed: %v", err)
+	}
+	return msg.MessageID
 }

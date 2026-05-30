@@ -59,6 +59,7 @@ type TransitionOptions struct {
 	Progress   json.RawMessage
 	LeaseOwner string
 	LeaseUntil time.Time
+	ClearLease bool
 	Attempt    int
 	Metadata   models.RuntimeEventMetadata
 	Payload    map[string]any
@@ -76,6 +77,7 @@ type EventBackedStore interface {
 	WorkflowTasks(workflowID string) []string
 	RegisterWorker(ctx context.Context, workerID string, capabilities map[string]string, metadata models.RuntimeEventMetadata) error
 	Heartbeat(ctx context.Context, workerID string, metadata models.RuntimeEventMetadata) error
+	MarkWorkerHeartbeatMissed(ctx context.Context, workerID string, metadata models.RuntimeEventMetadata) error
 	MarkWorkerOffline(ctx context.Context, workerID string, metadata models.RuntimeEventMetadata) error
 	ListWorkers() []*models.WorkerNode
 }

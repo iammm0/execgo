@@ -28,6 +28,18 @@ func TestConfigLoad_Defaults(t *testing.T) {
 	if cfg.ShutdownTimeout != 15 {
 		t.Fatalf("ShutdownTimeout=%d want %d", cfg.ShutdownTimeout, 15)
 	}
+	if cfg.LeaseSweepSeconds != 5 {
+		t.Fatalf("LeaseSweepSeconds=%d want %d", cfg.LeaseSweepSeconds, 5)
+	}
+	if cfg.WorkerStaleSeconds != 15 {
+		t.Fatalf("WorkerStaleSeconds=%d want %d", cfg.WorkerStaleSeconds, 15)
+	}
+	if cfg.RedisClaimMinIdleSeconds != 30 {
+		t.Fatalf("RedisClaimMinIdleSeconds=%d want %d", cfg.RedisClaimMinIdleSeconds, 30)
+	}
+	if cfg.RedisClaimBatch != 10 {
+		t.Fatalf("RedisClaimBatch=%d want %d", cfg.RedisClaimBatch, 10)
+	}
 }
 
 func TestConfigLoad_MapProviderOverrides(t *testing.T) {
@@ -38,8 +50,12 @@ func TestConfigLoad_MapProviderOverrides(t *testing.T) {
 			config.KeyDataDir:  "/tmp/execgo-data",
 		},
 		Ints: map[string]int{
-			config.KeyMaxConcurrency:  32,
-			config.KeyShutdownTimeout: 60,
+			config.KeyMaxConcurrency:           32,
+			config.KeyShutdownTimeout:          60,
+			config.KeyLeaseSweepSeconds:        7,
+			config.KeyWorkerStaleSeconds:       11,
+			config.KeyRedisClaimMinIdleSeconds: 13,
+			config.KeyRedisClaimBatch:          17,
 		},
 	})
 	if err := cfg.Validate(); err != nil {
@@ -60,6 +76,18 @@ func TestConfigLoad_MapProviderOverrides(t *testing.T) {
 	}
 	if cfg.ShutdownTimeout != 60 {
 		t.Fatalf("ShutdownTimeout=%d want %d", cfg.ShutdownTimeout, 60)
+	}
+	if cfg.LeaseSweepSeconds != 7 {
+		t.Fatalf("LeaseSweepSeconds=%d want %d", cfg.LeaseSweepSeconds, 7)
+	}
+	if cfg.WorkerStaleSeconds != 11 {
+		t.Fatalf("WorkerStaleSeconds=%d want %d", cfg.WorkerStaleSeconds, 11)
+	}
+	if cfg.RedisClaimMinIdleSeconds != 13 {
+		t.Fatalf("RedisClaimMinIdleSeconds=%d want %d", cfg.RedisClaimMinIdleSeconds, 13)
+	}
+	if cfg.RedisClaimBatch != 17 {
+		t.Fatalf("RedisClaimBatch=%d want %d", cfg.RedisClaimBatch, 17)
 	}
 }
 

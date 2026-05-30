@@ -111,6 +111,10 @@ EXECGO_WORKER_CONCURRENCY=16 \
 - `EXECGO_SANDBOX_MODE`: `local` | `docker`
 - `postgres` 事件日志必须提供 `EXECGO_EVENT_STORE_POSTGRES_DSN`
 - `redis` 队列必须提供 `EXECGO_REDIS_ADDR`
+- `EXECGO_LEASE_SWEEP_INTERVAL_SECONDS`: lease 回收扫描间隔，默认 `5`
+- `EXECGO_WORKER_STALE_SECONDS`: worker stale 判定阈值，默认 `EXECGO_HEARTBEAT_SECONDS * 3`
+- `EXECGO_REDIS_CLAIM_MIN_IDLE_SECONDS`: Redis pending message reclaim 阈值，默认 `EXECGO_LEASE_SECONDS`
+- `EXECGO_REDIS_CLAIM_BATCH`: Redis pending reclaim 批量大小，默认 `10`
 
 可选沙箱：
 
@@ -197,6 +201,17 @@ curl http://localhost:8080/workers
 
 # 事件日志 / Runtime event log
 curl 'http://localhost:8080/events?after=0&limit=100'
+
+# 队列深度 / Queue depth
+curl http://localhost:8080/queue
+
+# 死信队列 / Dead-letter queue
+curl 'http://localhost:8080/queue/dead?limit=100'
+
+# 重新入队死信消息 / Requeue a dead-letter message
+curl -X POST http://localhost:8080/queue/dead/requeue \
+  -H "Content-Type: application/json" \
+  -d '{"message_id":"execgo:dead|1710000000000-0","delay_ms":0}'
 ```
 
 ---

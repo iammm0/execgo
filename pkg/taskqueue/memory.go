@@ -18,7 +18,7 @@ type MemoryQueue struct {
 	ready    readyHeap
 	delayed  delayedHeap
 	inFlight map[string]*queueItem
-	deadCnt  int64
+	dead     []*queueItem
 }
 
 // NewMemoryQueue creates a new in-memory queue.
@@ -142,7 +142,8 @@ func (q *MemoryQueue) Nack(ctx context.Context, workerID, messageID string, requ
 	delete(q.inFlight, messageID)
 
 	if deadLetter {
-		q.deadCnt++
+		item.seq = q.seq.Add(1)
+		q.dead = append(q.dead, item)
 		return nil
 	}
 
@@ -162,7 +163,61 @@ func (q *MemoryQueue) Depth(ctx context.Context) (ready int64, delayed int64, de
 	_ = ctx
 	q.mu.Lock()
 	defer q.mu.Unlock()
-	return int64(q.ready.Len()), int64(q.delayed.Len()), q.deadCnt, nil
+	return int64(q.ready.Len()), int64(q.delayed.Len()), int64(len(q.dead)), nil
+}
+
+func (q *MemoryQueue) ListDead(ctx context.Context, limit int) ([]Message, error) {
+	_ = ctx
+	if limit <= 0 {
+		limit = 100
+	}
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if limit > len(q.dead) {
+		limit = len(q.dead)
+	}
+	out := make([]Message, 0, limit)
+	for i := 0; i < limit; i++ {
+		out = append(out, *q.dead[i].toMessage())
+	}
+	return out, nil
+}
+
+func (q *MemoryQueue) RequeueDead(ctx context.Context, messageID string, runAt time.Time) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	idx := -1
+	var item *queueItem
+	for i, candidate := range q.dead {
+		if candidate.messageID == messageID {
+			idx = i
+			item = candidate
+			break
+		}
+	}
+	if item == nil {
+		return ErrMessageNotFound
+	}
+	q.dead = append(q.dead[:idx], q.dead[idx+1:]...)
+	item.messageID = fmt.Sprintf("mem-%d", time.Now().UnixNano())
+	item.seq = q.seq.Add(1)
+	item.enqueuedAt = time.Now().UTC()
+
+	now := time.Now().UTC()
+	if !runAt.IsZero() && runAt.After(now) {
+		item.scheduledAt = runAt.UTC()
+		heap.Push(&q.delayed, item)
+		return nil
+	}
+	item.scheduledAt = now
+	heap.Push(&q.ready, item)
+	return nil
 }
 
 func (q *MemoryQueue) moveDueLocked(now time.Time) {

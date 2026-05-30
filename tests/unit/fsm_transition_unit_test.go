@@ -14,6 +14,9 @@ func TestFSM_TransitionValidation(t *testing.T) {
 	if !fsm.CanTransition(models.StatusRunning, models.StatusRetrying) {
 		t.Fatal("expected running -> retrying to be allowed")
 	}
+	if !fsm.CanTransition(models.StatusLeased, models.StatusTimedOut) {
+		t.Fatal("expected leased -> timed_out to be allowed")
+	}
 	if fsm.CanTransition(models.StatusReady, models.StatusSuccess) {
 		t.Fatal("expected ready -> success to be rejected")
 	}

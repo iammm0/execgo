@@ -4,6 +4,7 @@ package scheduler
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"sort"
 	"sync"
@@ -19,11 +20,12 @@ import (
 
 // Scheduler orchestrates DAG dependency resolution and queueing.
 type Scheduler struct {
-	state   store.Store
-	evented store.EventBackedStore
-	metrics *observability.Metrics
-	logger  *slog.Logger
-	queue   taskqueue.Queue
+	state    store.Store
+	evented  store.EventBackedStore
+	metrics  *observability.Metrics
+	logger   *slog.Logger
+	queue    taskqueue.Queue
+	recovery RecoveryConfig
 
 	mu         sync.Mutex
 	depCount   map[string]int
@@ -31,6 +33,32 @@ type Scheduler struct {
 	started    bool
 	ctx        context.Context
 	cancel     context.CancelFunc
+	wg         sync.WaitGroup
+}
+
+// RecoveryConfig controls lease recovery and worker stale detection.
+type RecoveryConfig struct {
+	Enabled            bool
+	LeaseSweepInterval time.Duration
+	WorkerStaleAfter   time.Duration
+	MaxRecoverBatch    int
+}
+
+// RecoveryReport summarizes one recovery sweep.
+type RecoveryReport struct {
+	Requeued     int
+	TimedOut     int
+	WorkersStale int
+}
+
+// DefaultRecoveryConfig returns production-safe recovery defaults.
+func DefaultRecoveryConfig() RecoveryConfig {
+	return RecoveryConfig{
+		Enabled:            true,
+		LeaseSweepInterval: 5 * time.Second,
+		WorkerStaleAfter:   15 * time.Second,
+		MaxRecoverBatch:    100,
+	}
 }
 
 // New creates scheduler with memory queue by default.
@@ -41,6 +69,11 @@ func New(st store.Store, metrics *observability.Metrics, logger *slog.Logger, ma
 
 // NewWithQueue creates scheduler with provided queue backend.
 func NewWithQueue(st store.Store, metrics *observability.Metrics, logger *slog.Logger, queue taskqueue.Queue) *Scheduler {
+	return NewWithQueueAndRecovery(st, metrics, logger, queue, DefaultRecoveryConfig())
+}
+
+// NewWithQueueAndRecovery creates scheduler with provided queue and recovery behavior.
+func NewWithQueueAndRecovery(st store.Store, metrics *observability.Metrics, logger *slog.Logger, queue taskqueue.Queue, recovery RecoveryConfig) *Scheduler {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -49,6 +82,7 @@ func NewWithQueue(st store.Store, metrics *observability.Metrics, logger *slog.L
 		metrics:    metrics,
 		logger:     logger,
 		queue:      queue,
+		recovery:   normalizeRecoveryConfig(recovery),
 		depCount:   make(map[string]int),
 		dependents: make(map[string][]string),
 	}
@@ -78,6 +112,13 @@ func (s *Scheduler) Start(ctx context.Context) {
 		}
 	}
 	s.restoreGraphState()
+	if s.recovery.Enabled && s.evented != nil {
+		s.wg.Add(1)
+		go func() {
+			defer s.wg.Done()
+			s.recoveryLoop(s.ctx)
+		}()
+	}
 	s.logger.Info("scheduler started")
 }
 
@@ -89,12 +130,204 @@ func (s *Scheduler) Stop() {
 	}
 	s.started = false
 	s.mu.Unlock()
+	s.wg.Wait()
 	s.logger.Info("scheduler stopped")
 }
 
 // Queue returns the queue backend used by scheduler.
 func (s *Scheduler) Queue() taskqueue.Queue {
 	return s.queue
+}
+
+// RecoverExpiredLeases requeues expired leases and marks stale workers.
+func (s *Scheduler) RecoverExpiredLeases(ctx context.Context, now time.Time) (RecoveryReport, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if now.IsZero() {
+		now = time.Now().UTC()
+	}
+	report := RecoveryReport{}
+	if s.evented == nil || s.queue == nil {
+		return report, nil
+	}
+
+	limit := s.recovery.MaxRecoverBatch
+	if limit <= 0 {
+		limit = DefaultRecoveryConfig().MaxRecoverBatch
+	}
+
+	var joined error
+	recovered := 0
+	for _, task := range s.state.GetAll() {
+		if recovered >= limit {
+			break
+		}
+		if task == nil || task.Status.IsTerminal() {
+			continue
+		}
+		if task.Status != models.StatusLeased && task.Status != models.StatusRunning {
+			continue
+		}
+		if task.LeaseUntil.IsZero() || task.LeaseUntil.After(now) {
+			continue
+		}
+
+		if err := s.recoverExpiredTask(ctx, task, now, &report); err != nil {
+			joined = errors.Join(joined, err)
+		}
+		recovered++
+	}
+
+	if err := s.markStaleWorkers(ctx, now, &report); err != nil {
+		joined = errors.Join(joined, err)
+	}
+
+	return report, joined
+}
+
+func normalizeRecoveryConfig(cfg RecoveryConfig) RecoveryConfig {
+	def := DefaultRecoveryConfig()
+	if !cfg.Enabled && cfg.LeaseSweepInterval == 0 && cfg.WorkerStaleAfter == 0 && cfg.MaxRecoverBatch == 0 {
+		cfg.Enabled = def.Enabled
+	}
+	if cfg.LeaseSweepInterval <= 0 {
+		cfg.LeaseSweepInterval = def.LeaseSweepInterval
+	}
+	if cfg.WorkerStaleAfter <= 0 {
+		cfg.WorkerStaleAfter = def.WorkerStaleAfter
+	}
+	if cfg.MaxRecoverBatch <= 0 {
+		cfg.MaxRecoverBatch = def.MaxRecoverBatch
+	}
+	return cfg
+}
+
+func (s *Scheduler) recoveryLoop(ctx context.Context) {
+	ticker := time.NewTicker(s.recovery.LeaseSweepInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case now := <-ticker.C:
+			report, err := s.RecoverExpiredLeases(ctx, now.UTC())
+			if err != nil {
+				s.logger.Warn("lease recovery sweep failed", "error", err)
+			}
+			if report.Requeued > 0 || report.TimedOut > 0 || report.WorkersStale > 0 {
+				s.logger.Info("lease recovery sweep completed", "requeued", report.Requeued, "timed_out", report.TimedOut, "workers_stale", report.WorkersStale)
+			}
+		}
+	}
+}
+
+func (s *Scheduler) recoverExpiredTask(ctx context.Context, task *models.Task, now time.Time, report *RecoveryReport) error {
+	attempt := task.Attempt
+	if attempt <= 0 {
+		attempt = 1
+	}
+	nextAttempt := attempt + 1
+	maxAttempts := task.Retry + 1
+	if maxAttempts < 1 {
+		maxAttempts = 1
+	}
+
+	payload := map[string]any{
+		"reason":               "lease_expired",
+		"expired_at":           now,
+		"previous_lease_owner": task.LeaseOwner,
+		"previous_lease_until": task.LeaseUntil,
+	}
+
+	if attempt >= maxAttempts {
+		_, err := s.evented.TransitionTask(ctx, task.ID, models.StatusTimedOut, store.TransitionOptions{
+			Error:      "lease expired before worker ack",
+			Attempt:    attempt,
+			ClearLease: true,
+			Metadata: models.RuntimeEventMetadata{
+				TaskID:   task.ID,
+				WorkerID: task.LeaseOwner,
+				Attempt:  attempt,
+				Producer: "scheduler-recovery",
+			},
+			Payload: payload,
+		})
+		if err != nil {
+			return err
+		}
+		if task.Status == models.StatusRunning {
+			s.metrics.TasksRunning.Add(-1)
+		}
+		s.metrics.TasksFailed.Add(1)
+		report.TimedOut++
+		return nil
+	}
+
+	switch task.Status {
+	case models.StatusRunning:
+		if _, err := s.evented.TransitionTask(ctx, task.ID, models.StatusRetrying, store.TransitionOptions{
+			Error:      "lease expired before worker ack",
+			Attempt:    nextAttempt,
+			ClearLease: true,
+			Metadata: models.RuntimeEventMetadata{
+				TaskID:   task.ID,
+				WorkerID: task.LeaseOwner,
+				Attempt:  nextAttempt,
+				Producer: "scheduler-recovery",
+			},
+			Payload: payload,
+		}); err != nil {
+			return err
+		}
+		s.metrics.TasksRunning.Add(-1)
+	}
+
+	if _, err := s.evented.TransitionTask(ctx, task.ID, models.StatusReady, store.TransitionOptions{
+		EventType:  models.RuntimeEventReady,
+		Attempt:    nextAttempt,
+		ClearLease: true,
+		Metadata: models.RuntimeEventMetadata{
+			TaskID:   task.ID,
+			WorkerID: task.LeaseOwner,
+			Attempt:  nextAttempt,
+			Producer: "scheduler-recovery",
+		},
+		Payload: payload,
+	}); err != nil {
+		return err
+	}
+
+	if err := s.queue.Enqueue(ctx, task.ID, task.Priority, nextAttempt); err != nil {
+		return err
+	}
+	report.Requeued++
+	return nil
+}
+
+func (s *Scheduler) markStaleWorkers(ctx context.Context, now time.Time, report *RecoveryReport) error {
+	if s.evented == nil {
+		return nil
+	}
+	var joined error
+	for _, worker := range s.evented.ListWorkers() {
+		if worker == nil || worker.Status != "online" {
+			continue
+		}
+		if worker.LastSeenAt.IsZero() || now.Sub(worker.LastSeenAt) <= s.recovery.WorkerStaleAfter {
+			continue
+		}
+		err := s.evented.MarkWorkerHeartbeatMissed(ctx, worker.ID, models.RuntimeEventMetadata{
+			WorkerID: worker.ID,
+			Producer: "scheduler-recovery",
+		})
+		if err != nil {
+			joined = errors.Join(joined, err)
+			continue
+		}
+		report.WorkersStale++
+	}
+	return joined
 }
 
 // Submit validates and submits DAG tasks to scheduler.
@@ -214,10 +447,11 @@ func (s *Scheduler) OnTaskProgress(taskID, workerID string, progress json.RawMes
 func (s *Scheduler) OnTaskSucceeded(taskID, workerID string, output json.RawMessage, attempt int, handleID string) {
 	if s.evented != nil {
 		_, err := s.evented.TransitionTask(context.Background(), taskID, models.StatusSuccess, store.TransitionOptions{
-			Result:   output,
-			HandleID: handleID,
-			Attempt:  attempt,
-			Metadata: models.RuntimeEventMetadata{WorkerID: workerID, Attempt: attempt, TaskID: taskID},
+			Result:     output,
+			HandleID:   handleID,
+			ClearLease: true,
+			Attempt:    attempt,
+			Metadata:   models.RuntimeEventMetadata{WorkerID: workerID, Attempt: attempt, TaskID: taskID},
 		})
 		if err != nil {
 			s.logger.Warn("mark task success failed", "task_id", taskID, "error", err)
@@ -249,9 +483,10 @@ func (s *Scheduler) OnTaskSucceeded(taskID, workerID string, output json.RawMess
 func (s *Scheduler) OnTaskRetry(taskID, workerID string, attempt int, runAt time.Time, errMsg string) {
 	if s.evented != nil {
 		_, err := s.evented.TransitionTask(context.Background(), taskID, models.StatusRetrying, store.TransitionOptions{
-			Error:    errMsg,
-			Attempt:  attempt,
-			Metadata: models.RuntimeEventMetadata{WorkerID: workerID, Attempt: attempt, TaskID: taskID},
+			Error:      errMsg,
+			ClearLease: true,
+			Attempt:    attempt,
+			Metadata:   models.RuntimeEventMetadata{WorkerID: workerID, Attempt: attempt, TaskID: taskID},
 			Payload: map[string]any{
 				"retry_at": runAt,
 			},
@@ -284,11 +519,12 @@ func (s *Scheduler) OnTaskRetry(taskID, workerID string, attempt int, runAt time
 func (s *Scheduler) OnTaskFailed(taskID, workerID string, output json.RawMessage, attempt int, errMsg string, handleID string) {
 	if s.evented != nil {
 		_, err := s.evented.TransitionTask(context.Background(), taskID, models.StatusFailed, store.TransitionOptions{
-			Result:   output,
-			Error:    errMsg,
-			HandleID: handleID,
-			Attempt:  attempt,
-			Metadata: models.RuntimeEventMetadata{WorkerID: workerID, Attempt: attempt, TaskID: taskID},
+			Result:     output,
+			Error:      errMsg,
+			HandleID:   handleID,
+			ClearLease: true,
+			Attempt:    attempt,
+			Metadata:   models.RuntimeEventMetadata{WorkerID: workerID, Attempt: attempt, TaskID: taskID},
 		})
 		if err != nil {
 			s.logger.Warn("mark task failed failed", "task_id", taskID, "error", err)
@@ -316,8 +552,9 @@ func (s *Scheduler) OnTaskFailed(taskID, workerID string, output json.RawMessage
 func (s *Scheduler) markSkippedCascade(taskID, reason string) {
 	if s.evented != nil {
 		_, _ = s.evented.TransitionTask(context.Background(), taskID, models.StatusSkipped, store.TransitionOptions{
-			EventType: models.RuntimeEventFailed,
-			Error:     reason,
+			EventType:  models.RuntimeEventFailed,
+			Error:      reason,
+			ClearLease: true,
 		})
 	} else {
 		s.state.UpdateStatus(taskID, models.StatusSkipped, nil, reason)

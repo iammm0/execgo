@@ -27,10 +27,15 @@ const (
 	KeyRedisPrefix   = "redis_prefix"
 	KeyRedisGroup    = "redis_group"
 
-	KeyWorkerID          = "worker_id"
-	KeyWorkerConcurrency = "worker_concurrency"
-	KeyHeartbeatSeconds  = "heartbeat_seconds"
-	KeyLeaseSeconds      = "lease_seconds"
+	KeyWorkerID           = "worker_id"
+	KeyWorkerConcurrency  = "worker_concurrency"
+	KeyHeartbeatSeconds   = "heartbeat_seconds"
+	KeyLeaseSeconds       = "lease_seconds"
+	KeyLeaseSweepSeconds  = "lease_sweep_seconds"
+	KeyWorkerStaleSeconds = "worker_stale_seconds"
+
+	KeyRedisClaimMinIdleSeconds = "redis_claim_min_idle_seconds"
+	KeyRedisClaimBatch          = "redis_claim_batch"
 
 	KeySandboxMode     = "sandbox_mode"
 	KeyDockerImage     = "docker_image"
@@ -58,10 +63,15 @@ const (
 	EnvRedisPrefix   = "EXECGO_REDIS_PREFIX"
 	EnvRedisGroup    = "EXECGO_REDIS_GROUP"
 
-	EnvWorkerID          = "EXECGO_WORKER_ID"
-	EnvWorkerConcurrency = "EXECGO_WORKER_CONCURRENCY"
-	EnvHeartbeatSeconds  = "EXECGO_HEARTBEAT_SECONDS"
-	EnvLeaseSeconds      = "EXECGO_LEASE_SECONDS"
+	EnvWorkerID           = "EXECGO_WORKER_ID"
+	EnvWorkerConcurrency  = "EXECGO_WORKER_CONCURRENCY"
+	EnvHeartbeatSeconds   = "EXECGO_HEARTBEAT_SECONDS"
+	EnvLeaseSeconds       = "EXECGO_LEASE_SECONDS"
+	EnvLeaseSweepSeconds  = "EXECGO_LEASE_SWEEP_INTERVAL_SECONDS"
+	EnvWorkerStaleSeconds = "EXECGO_WORKER_STALE_SECONDS"
+
+	EnvRedisClaimMinIdleSeconds = "EXECGO_REDIS_CLAIM_MIN_IDLE_SECONDS"
+	EnvRedisClaimBatch          = "EXECGO_REDIS_CLAIM_BATCH"
 
 	EnvSandboxMode     = "EXECGO_SANDBOX_MODE"
 	EnvDockerImage     = "EXECGO_DOCKER_IMAGE"
@@ -90,10 +100,15 @@ type Config struct {
 	RedisPrefix   string
 	RedisGroup    string
 
-	WorkerID          string
-	WorkerConcurrency int
-	HeartbeatSeconds  int
-	LeaseSeconds      int
+	WorkerID           string
+	WorkerConcurrency  int
+	HeartbeatSeconds   int
+	LeaseSeconds       int
+	LeaseSweepSeconds  int
+	WorkerStaleSeconds int
+
+	RedisClaimMinIdleSeconds int
+	RedisClaimBatch          int
 
 	SandboxMode     string
 	DockerImage     string
@@ -130,10 +145,15 @@ func Load(p Provider) *Config {
 		RedisPrefix:   p.GetString(KeyRedisPrefix, "execgo"),
 		RedisGroup:    p.GetString(KeyRedisGroup, "execgo-workers"),
 
-		WorkerID:          p.GetString(KeyWorkerID, "worker-local"),
-		WorkerConcurrency: p.GetInt(KeyWorkerConcurrency, 4),
-		HeartbeatSeconds:  p.GetInt(KeyHeartbeatSeconds, 5),
-		LeaseSeconds:      p.GetInt(KeyLeaseSeconds, 30),
+		WorkerID:           p.GetString(KeyWorkerID, "worker-local"),
+		WorkerConcurrency:  p.GetInt(KeyWorkerConcurrency, 4),
+		HeartbeatSeconds:   p.GetInt(KeyHeartbeatSeconds, 5),
+		LeaseSeconds:       p.GetInt(KeyLeaseSeconds, 30),
+		LeaseSweepSeconds:  p.GetInt(KeyLeaseSweepSeconds, 5),
+		WorkerStaleSeconds: p.GetInt(KeyWorkerStaleSeconds, 0),
+
+		RedisClaimMinIdleSeconds: p.GetInt(KeyRedisClaimMinIdleSeconds, 0),
+		RedisClaimBatch:          p.GetInt(KeyRedisClaimBatch, 10),
 
 		SandboxMode:     normalizeChoice(p.GetString(KeySandboxMode, "local")),
 		DockerImage:     p.GetString(KeyDockerImage, "alpine:3.21"),
@@ -144,6 +164,15 @@ func Load(p Provider) *Config {
 	}
 	if cfg.EventStoreSQLitePath == "" {
 		cfg.EventStoreSQLitePath = cfg.DataDir + "/eventlog.sqlite"
+	}
+	if cfg.WorkerStaleSeconds <= 0 {
+		cfg.WorkerStaleSeconds = cfg.HeartbeatSeconds * 3
+	}
+	if cfg.RedisClaimMinIdleSeconds <= 0 {
+		cfg.RedisClaimMinIdleSeconds = cfg.LeaseSeconds
+	}
+	if cfg.RedisClaimBatch <= 0 {
+		cfg.RedisClaimBatch = 10
 	}
 	return cfg
 }
@@ -202,6 +231,18 @@ func (cfg *Config) Validate() error {
 	if cfg.LeaseSeconds <= 0 {
 		return fmt.Errorf("lease seconds must be positive")
 	}
+	if cfg.LeaseSweepSeconds <= 0 {
+		return fmt.Errorf("lease sweep seconds must be positive")
+	}
+	if cfg.WorkerStaleSeconds <= 0 {
+		return fmt.Errorf("worker stale seconds must be positive")
+	}
+	if cfg.RedisClaimMinIdleSeconds <= 0 {
+		return fmt.Errorf("redis claim min idle seconds must be positive")
+	}
+	if cfg.RedisClaimBatch <= 0 {
+		return fmt.Errorf("redis claim batch must be positive")
+	}
 	if cfg.DockerPidsLimit <= 0 {
 		return fmt.Errorf("docker pids limit must be positive")
 	}
@@ -227,10 +268,15 @@ type FlagEnvProvider struct {
 	redisPrefix   string
 	redisGroup    string
 
-	workerID          string
-	workerConcurrency int
-	heartbeatSeconds  int
-	leaseSeconds      int
+	workerID           string
+	workerConcurrency  int
+	heartbeatSeconds   int
+	leaseSeconds       int
+	leaseSweepSeconds  int
+	workerStaleSeconds int
+
+	redisClaimMinIdleSeconds int
+	redisClaimBatch          int
 
 	sandboxMode     string
 	dockerImage     string
@@ -264,6 +310,10 @@ func NewFlagEnvProvider() *FlagEnvProvider {
 	flag.IntVar(&p.workerConcurrency, "worker-concurrency", envOrDefaultInt(EnvWorkerConcurrency, 4), "worker concurrency")
 	flag.IntVar(&p.heartbeatSeconds, "heartbeat-seconds", envOrDefaultInt(EnvHeartbeatSeconds, 5), "worker heartbeat interval")
 	flag.IntVar(&p.leaseSeconds, "lease-seconds", envOrDefaultInt(EnvLeaseSeconds, 30), "task lease duration")
+	flag.IntVar(&p.leaseSweepSeconds, "lease-sweep-interval", envOrDefaultInt(EnvLeaseSweepSeconds, 5), "lease recovery sweep interval in seconds")
+	flag.IntVar(&p.workerStaleSeconds, "worker-stale-seconds", envOrDefaultInt(EnvWorkerStaleSeconds, 0), "worker stale threshold in seconds; defaults to heartbeat interval * 3")
+	flag.IntVar(&p.redisClaimMinIdleSeconds, "redis-claim-min-idle", envOrDefaultInt(EnvRedisClaimMinIdleSeconds, 0), "redis pending message reclaim idle threshold in seconds; defaults to lease duration")
+	flag.IntVar(&p.redisClaimBatch, "redis-claim-batch", envOrDefaultInt(EnvRedisClaimBatch, 10), "redis pending message reclaim batch size")
 
 	flag.StringVar(&p.sandboxMode, "sandbox", envOrDefault(EnvSandboxMode, "local"), "sandbox mode: local|docker")
 	flag.StringVar(&p.dockerImage, "docker-image", envOrDefault(EnvDockerImage, "alpine:3.21"), "docker sandbox image")
@@ -338,6 +388,22 @@ func (p *FlagEnvProvider) GetInt(key string, defaultVal int) int {
 	case KeyLeaseSeconds:
 		if p.leaseSeconds > 0 {
 			return p.leaseSeconds
+		}
+	case KeyLeaseSweepSeconds:
+		if p.leaseSweepSeconds > 0 {
+			return p.leaseSweepSeconds
+		}
+	case KeyWorkerStaleSeconds:
+		if p.workerStaleSeconds > 0 {
+			return p.workerStaleSeconds
+		}
+	case KeyRedisClaimMinIdleSeconds:
+		if p.redisClaimMinIdleSeconds > 0 {
+			return p.redisClaimMinIdleSeconds
+		}
+	case KeyRedisClaimBatch:
+		if p.redisClaimBatch > 0 {
+			return p.redisClaimBatch
 		}
 	case KeyDockerPidsLimit:
 		if p.dockerPidsLimit > 0 {

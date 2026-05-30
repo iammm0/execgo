@@ -2,7 +2,9 @@
 package httpserver
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -15,6 +17,7 @@ import (
 	"github.com/iammm0/execgo/pkg/observability"
 	"github.com/iammm0/execgo/pkg/scheduler"
 	"github.com/iammm0/execgo/pkg/store"
+	"github.com/iammm0/execgo/pkg/taskqueue"
 	execgoversion "github.com/iammm0/execgo/pkg/version"
 )
 
@@ -80,6 +83,9 @@ func (e *Engine) routesMux() *http.ServeMux {
 	mux.HandleFunc("DELETE /tasks/{id}", e.handleDeleteTask)
 	mux.HandleFunc("GET /workers", e.handleListWorkers)
 	mux.HandleFunc("GET /events", e.handleListEvents)
+	mux.HandleFunc("GET /queue", e.handleQueueDepth)
+	mux.HandleFunc("GET /queue/dead", e.handleListDeadMessages)
+	mux.HandleFunc("POST /queue/dead/requeue", e.handleRequeueDeadMessage)
 	mux.HandleFunc("GET /health", e.handleHealth)
 	mux.HandleFunc("GET /metrics/prometheus", e.handlePrometheusMetrics)
 	mux.HandleFunc("GET /metrics", e.handleMetrics)
@@ -279,6 +285,86 @@ func (e *Engine) handleListEvents(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (e *Engine) handleQueueDepth(w http.ResponseWriter, r *http.Request) {
+	q := e.queue()
+	if q == nil {
+		writeJSON(w, http.StatusServiceUnavailable, models.ErrorResponse{Error: "queue is unavailable"})
+		return
+	}
+	ready, delayed, dead, err := q.Depth(r.Context())
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, models.ErrorResponse{Error: err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ready":   ready,
+		"delayed": delayed,
+		"dead":    dead,
+	})
+}
+
+func (e *Engine) handleListDeadMessages(w http.ResponseWriter, r *http.Request) {
+	q := e.queue()
+	if q == nil {
+		writeJSON(w, http.StatusServiceUnavailable, models.ErrorResponse{Error: "queue is unavailable"})
+		return
+	}
+	limit, err := parsePositiveInt(r.URL.Query().Get("limit"), "limit", defaultEventsLimit, maxEventsLimit)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, models.ErrorResponse{Error: err.Error()})
+		return
+	}
+	messages, err := q.ListDead(r.Context(), limit)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, models.ErrorResponse{Error: err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"messages": messages,
+	})
+}
+
+func (e *Engine) handleRequeueDeadMessage(w http.ResponseWriter, r *http.Request) {
+	q := e.queue()
+	if q == nil {
+		writeJSON(w, http.StatusServiceUnavailable, models.ErrorResponse{Error: "queue is unavailable"})
+		return
+	}
+	var req struct {
+		MessageID string `json:"message_id"`
+		DelayMS   int64  `json:"delay_ms,omitempty"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, models.ErrorResponse{Error: "invalid JSON: " + err.Error()})
+		return
+	}
+	req.MessageID = strings.TrimSpace(req.MessageID)
+	if req.MessageID == "" {
+		writeJSON(w, http.StatusBadRequest, models.ErrorResponse{Error: "message_id is required"})
+		return
+	}
+	if req.DelayMS < 0 {
+		writeJSON(w, http.StatusBadRequest, models.ErrorResponse{Error: "delay_ms must be non-negative"})
+		return
+	}
+	runAt := time.Time{}
+	if req.DelayMS > 0 {
+		runAt = time.Now().UTC().Add(time.Duration(req.DelayMS) * time.Millisecond)
+	}
+	if err := q.RequeueDead(r.Context(), req.MessageID, runAt); err != nil {
+		if errors.Is(err, taskqueue.ErrMessageNotFound) {
+			writeJSON(w, http.StatusNotFound, models.ErrorResponse{Error: err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusInternalServerError, models.ErrorResponse{Error: err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusAccepted, map[string]any{
+		"requeued":   true,
+		"message_id": req.MessageID,
+	})
+}
+
 func (e *Engine) handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, models.HealthResponse{
 		Status:  "ok",
@@ -288,12 +374,16 @@ func (e *Engine) handleHealth(w http.ResponseWriter, r *http.Request) {
 }
 
 func (e *Engine) handleMetrics(w http.ResponseWriter, r *http.Request) {
+	ready, delayed, dead := e.queueDepthSnapshot(r.Context())
 	writeJSON(w, http.StatusOK, models.MetricsResponse{
 		TasksTotal:     e.metrics.TasksTotal.Load(),
 		TasksRunning:   e.metrics.TasksRunning.Load(),
 		TasksSucceeded: e.metrics.TasksSucceeded.Load(),
 		TasksFailed:    e.metrics.TasksFailed.Load(),
 		ByType:         e.metrics.Snapshot(),
+		QueueReady:     ready,
+		QueueDelayed:   delayed,
+		QueueDead:      dead,
 	})
 }
 
@@ -328,6 +418,25 @@ func parsePositiveInt(raw, name string, defaultVal, maxVal int) (int, error) {
 		return 0, fmt.Errorf("%s must be <= %d", name, maxVal)
 	}
 	return n, nil
+}
+
+func (e *Engine) queue() taskqueue.Queue {
+	if e == nil || e.scheduler == nil {
+		return nil
+	}
+	return e.scheduler.Queue()
+}
+
+func (e *Engine) queueDepthSnapshot(ctx context.Context) (ready int64, delayed int64, dead int64) {
+	q := e.queue()
+	if q == nil {
+		return 0, 0, 0
+	}
+	ready, delayed, dead, err := q.Depth(ctx)
+	if err != nil {
+		return 0, 0, 0
+	}
+	return ready, delayed, dead
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

@@ -240,16 +240,20 @@ func (m *Manager) TransitionTask(ctx context.Context, taskID string, to models.T
 	}
 
 	payloadMap := map[string]any{
-		"from":        from,
-		"to":          to,
-		"status":      to,
-		"result":      opts.Result,
-		"error":       opts.Error,
-		"handle_id":   opts.HandleID,
-		"progress":    opts.Progress,
-		"lease_owner": opts.LeaseOwner,
-		"lease_until": opts.LeaseUntil,
-		"attempt":     opts.Attempt,
+		"from":      from,
+		"to":        to,
+		"status":    to,
+		"result":    opts.Result,
+		"error":     opts.Error,
+		"handle_id": opts.HandleID,
+		"progress":  opts.Progress,
+		"attempt":   opts.Attempt,
+	}
+	if opts.LeaseOwner != "" || opts.ClearLease {
+		payloadMap["lease_owner"] = opts.LeaseOwner
+	}
+	if !opts.LeaseUntil.IsZero() || opts.ClearLease {
+		payloadMap["lease_until"] = opts.LeaseUntil
 	}
 	for k, v := range opts.Payload {
 		payloadMap[k] = v
@@ -398,6 +402,19 @@ func (m *Manager) Heartbeat(ctx context.Context, workerID string, metadata model
 	event := models.RuntimeEvent{
 		AggregateID: workerID,
 		Type:        models.RuntimeEventWorkerHeartbeat,
+		Payload:     payload,
+		Metadata:    metadata,
+		CreatedAt:   time.Now().UTC(),
+	}
+	_, err := m.appendAndApply(ctx, streamWorker(workerID), -1, event)
+	return err
+}
+
+func (m *Manager) MarkWorkerHeartbeatMissed(ctx context.Context, workerID string, metadata models.RuntimeEventMetadata) error {
+	payload, _ := json.Marshal(map[string]any{"worker_id": workerID, "status": "stale"})
+	event := models.RuntimeEvent{
+		AggregateID: workerID,
+		Type:        models.RuntimeEventWorkerHeartbeatMissed,
 		Payload:     payload,
 		Metadata:    metadata,
 		CreatedAt:   time.Now().UTC(),
@@ -765,6 +782,8 @@ func (m *Manager) applyRuntimeEnvelope(task *models.Task, status models.TaskStat
 		code := models.ErrorExternalFailure
 		retryable := status == models.StatusRetrying
 		switch {
+		case status == models.StatusTimedOut:
+			code = models.ErrorTimeout
 		case strings.Contains(strings.ToLower(task.Error), "deadline exceeded"):
 			code = models.ErrorTimeout
 			retryable = true

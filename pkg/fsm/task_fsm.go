@@ -25,6 +25,7 @@ var TransitionTable = map[models.TaskStatus]map[models.TaskStatus]struct{}{
 	models.StatusLeased: {
 		models.StatusRunning:   {},
 		models.StatusReady:     {}, // lease expired / reclaimed
+		models.StatusTimedOut:  {},
 		models.StatusCancelled: {},
 		models.StatusSkipped:   {},
 	},

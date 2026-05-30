@@ -207,6 +207,9 @@ type MetricsResponse struct {
 	TasksSucceeded int64            `json:"tasks_succeeded"`
 	TasksFailed    int64            `json:"tasks_failed"`
 	ByType         map[string]int64 `json:"by_type"`
+	QueueReady     int64            `json:"queue_ready"`
+	QueueDelayed   int64            `json:"queue_delayed"`
+	QueueDead      int64            `json:"queue_dead"`
 }
 
 // WorkerNode tracks worker liveness/capabilities.
