@@ -206,6 +206,7 @@ type MetricsResponse struct {
 	TasksRunning   int64            `json:"tasks_running"`
 	TasksSucceeded int64            `json:"tasks_succeeded"`
 	TasksFailed    int64            `json:"tasks_failed"`
+	TasksCancelled int64            `json:"tasks_cancelled"`
 	ByType         map[string]int64 `json:"by_type"`
 	QueueReady     int64            `json:"queue_ready"`
 	QueueDelayed   int64            `json:"queue_delayed"`

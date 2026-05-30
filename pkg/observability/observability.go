@@ -111,6 +111,7 @@ type Metrics struct {
 	TasksRunning   atomic.Int64
 	TasksSucceeded atomic.Int64
 	TasksFailed    atomic.Int64
+	TasksCancelled atomic.Int64
 
 	mu     sync.RWMutex
 	ByType map[string]*atomic.Int64
@@ -306,6 +307,13 @@ func registerLegacyMetricsBridge(meter metric.Meter, m *Metrics) error {
 	if err != nil {
 		return err
 	}
+	tasksCancelled, err := meter.Int64ObservableGauge(
+		"execgo_tasks_cancelled_total",
+		metric.WithDescription("Total cancelled tasks"),
+	)
+	if err != nil {
+		return err
+	}
 	tasksByType, err := meter.Int64ObservableGauge(
 		"execgo_tasks_by_type_total",
 		metric.WithDescription("Tasks grouped by task type"),
@@ -319,11 +327,12 @@ func registerLegacyMetricsBridge(meter metric.Meter, m *Metrics) error {
 		o.ObserveInt64(tasksRunning, m.TasksRunning.Load())
 		o.ObserveInt64(tasksSucceeded, m.TasksSucceeded.Load())
 		o.ObserveInt64(tasksFailed, m.TasksFailed.Load())
+		o.ObserveInt64(tasksCancelled, m.TasksCancelled.Load())
 		for taskType, count := range m.Snapshot() {
 			o.ObserveInt64(tasksByType, count, metric.WithAttributes(attribute.String("task_type", taskType)))
 		}
 		return nil
-	}, tasksTotal, tasksRunning, tasksSucceeded, tasksFailed, tasksByType)
+	}, tasksTotal, tasksRunning, tasksSucceeded, tasksFailed, tasksCancelled, tasksByType)
 
 	return err
 }

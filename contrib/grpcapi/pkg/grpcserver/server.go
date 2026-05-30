@@ -3,6 +3,7 @@ package grpcserver
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"time"
 
@@ -191,6 +192,30 @@ func (s *Server) DeleteTask(ctx context.Context, req *execgov1.DeleteTaskRequest
 	return &execgov1.DeleteTaskResponse{Deleted: true}, nil
 }
 
+func (s *Server) CancelTask(ctx context.Context, req *execgov1.CancelTaskRequest) (*execgov1.CancelTaskResponse, error) {
+	if req == nil || req.GetId() == "" {
+		return nil, status.Error(codes.InvalidArgument, "id is required")
+	}
+	result, err := s.sched.CancelTask(ctx, req.GetId(), req.GetReason(), "grpc")
+	if err != nil {
+		switch {
+		case errors.Is(err, scheduler.ErrTaskNotFound):
+			return nil, status.Error(codes.NotFound, err.Error())
+		case errors.Is(err, scheduler.ErrTaskTerminal):
+			return nil, status.Error(codes.FailedPrecondition, err.Error())
+		default:
+			return nil, status.Error(codes.Internal, err.Error())
+		}
+	}
+	return &execgov1.CancelTaskResponse{
+		Cancelled:      result.Cancelled,
+		TaskId:         result.TaskID,
+		Status:         string(result.Status),
+		PreviousStatus: string(result.PreviousStatus),
+		Reason:         result.Reason,
+	}, nil
+}
+
 func (s *Server) Health(ctx context.Context, req *execgov1.HealthRequest) (*execgov1.HealthResponse, error) {
 	_ = req
 	return &execgov1.HealthResponse{
@@ -207,6 +232,7 @@ func (s *Server) Metrics(ctx context.Context, req *execgov1.MetricsRequest) (*ex
 		TasksRunning:   s.metrics.TasksRunning.Load(),
 		TasksSucceeded: s.metrics.TasksSucceeded.Load(),
 		TasksFailed:    s.metrics.TasksFailed.Load(),
+		TasksCancelled: s.metrics.TasksCancelled.Load(),
 		ByType:         s.metrics.Snapshot(),
 	}, nil
 }

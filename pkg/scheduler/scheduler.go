@@ -5,8 +5,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -30,11 +32,21 @@ type Scheduler struct {
 	mu         sync.Mutex
 	depCount   map[string]int
 	dependents map[string][]string
+	inFlight   map[string]context.CancelFunc
 	started    bool
 	ctx        context.Context
 	cancel     context.CancelFunc
 	wg         sync.WaitGroup
 }
+
+var (
+	// ErrTaskNotFound is returned when cancellation targets an unknown task.
+	ErrTaskNotFound = errors.New("task not found")
+	// ErrTaskTerminal is returned when cancellation targets a completed task.
+	ErrTaskTerminal = errors.New("task already terminal")
+)
+
+const defaultCancelReason = "user_requested"
 
 // RecoveryConfig controls lease recovery and worker stale detection.
 type RecoveryConfig struct {
@@ -49,6 +61,15 @@ type RecoveryReport struct {
 	Requeued     int
 	TimedOut     int
 	WorkersStale int
+}
+
+// CancelResult summarizes a task cancellation request.
+type CancelResult struct {
+	Cancelled      bool              `json:"cancelled"`
+	TaskID         string            `json:"task_id"`
+	Status         models.TaskStatus `json:"status"`
+	PreviousStatus models.TaskStatus `json:"previous_status,omitempty"`
+	Reason         string            `json:"reason,omitempty"`
 }
 
 // DefaultRecoveryConfig returns production-safe recovery defaults.
@@ -85,6 +106,7 @@ func NewWithQueueAndRecovery(st store.Store, metrics *observability.Metrics, log
 		recovery:   normalizeRecoveryConfig(recovery),
 		depCount:   make(map[string]int),
 		dependents: make(map[string][]string),
+		inFlight:   make(map[string]context.CancelFunc),
 	}
 	if es, ok := st.(store.EventBackedStore); ok {
 		s.evented = es
@@ -137,6 +159,97 @@ func (s *Scheduler) Stop() {
 // Queue returns the queue backend used by scheduler.
 func (s *Scheduler) Queue() taskqueue.Queue {
 	return s.queue
+}
+
+// RegisterInFlight records a cancellable running task context.
+func (s *Scheduler) RegisterInFlight(taskID string, cancel context.CancelFunc) func() {
+	if taskID == "" || cancel == nil {
+		return func() {}
+	}
+	s.mu.Lock()
+	s.inFlight[taskID] = cancel
+	s.mu.Unlock()
+	return func() {
+		s.mu.Lock()
+		delete(s.inFlight, taskID)
+		s.mu.Unlock()
+	}
+}
+
+// CancelTask marks a non-terminal task cancelled and signals any local runner.
+func (s *Scheduler) CancelTask(ctx context.Context, taskID, reason, source string) (CancelResult, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	reason = strings.TrimSpace(reason)
+	if reason == "" {
+		reason = defaultCancelReason
+	}
+	source = strings.TrimSpace(source)
+	if source == "" {
+		source = "scheduler"
+	}
+
+	task, ok := s.state.Get(taskID)
+	if !ok {
+		return CancelResult{TaskID: taskID, Reason: reason}, fmt.Errorf("%w: %s", ErrTaskNotFound, taskID)
+	}
+	result := CancelResult{
+		TaskID:         task.ID,
+		Status:         task.Status,
+		PreviousStatus: task.Status,
+		Reason:         reason,
+	}
+	if task.Status == models.StatusCancelled {
+		result.Reason = "already_cancelled"
+		return result, nil
+	}
+	if task.Status.IsTerminal() {
+		return result, fmt.Errorf("%w: %s", ErrTaskTerminal, task.Status)
+	}
+
+	if s.evented != nil {
+		if _, err := s.evented.TransitionTask(ctx, task.ID, models.StatusCancelled, store.TransitionOptions{
+			Error:      reason,
+			ClearLease: true,
+			Attempt:    task.Attempt,
+			Metadata: models.RuntimeEventMetadata{
+				TaskID:   task.ID,
+				WorkerID: task.LeaseOwner,
+				Attempt:  task.Attempt,
+				Producer: source,
+			},
+			Payload: map[string]any{
+				"reason":          reason,
+				"previous_status": task.Status,
+				"source":          source,
+			},
+		}); err != nil {
+			return result, err
+		}
+	} else if !s.state.UpdateStatus(task.ID, models.StatusCancelled, nil, reason) {
+		return result, fmt.Errorf("%w: %s", ErrTaskNotFound, task.ID)
+	}
+
+	if task.Status == models.StatusRunning {
+		s.metrics.TasksRunning.Add(-1)
+	}
+	s.metrics.TasksCancelled.Add(1)
+	s.cancelInFlight(task.ID)
+	s.skipDependentsForCancel(ctx, task.ID)
+
+	result.Cancelled = true
+	result.Status = models.StatusCancelled
+	return result, nil
+}
+
+func (s *Scheduler) cancelInFlight(taskID string) {
+	s.mu.Lock()
+	cancel := s.inFlight[taskID]
+	s.mu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
 }
 
 // RecoverExpiredLeases requeues expired leases and marks stale workers.
@@ -391,6 +504,9 @@ func (s *Scheduler) SubmitWithContext(ctx context.Context, graph *models.TaskGra
 
 // OnTaskLeased records lease state.
 func (s *Scheduler) OnTaskLeased(taskID, workerID string, until time.Time, attempt int) {
+	if s.taskTerminalOrMissing(taskID) {
+		return
+	}
 	if s.evented == nil {
 		return
 	}
@@ -408,7 +524,7 @@ func (s *Scheduler) OnTaskLeased(taskID, workerID string, until time.Time, attem
 // OnTaskStarted records running state.
 func (s *Scheduler) OnTaskStarted(taskID, workerID string, attempt int) {
 	task, ok := s.state.Get(taskID)
-	if ok && task.Status == models.StatusRunning {
+	if !ok || task.Status.IsTerminal() || task.Status == models.StatusRunning {
 		return
 	}
 	if s.evented == nil {
@@ -429,6 +545,9 @@ func (s *Scheduler) OnTaskStarted(taskID, workerID string, attempt int) {
 
 // OnTaskProgress records progress payload.
 func (s *Scheduler) OnTaskProgress(taskID, workerID string, progress json.RawMessage, attempt int) {
+	if s.taskTerminalOrMissing(taskID) {
+		return
+	}
 	if s.evented == nil {
 		return
 	}
@@ -445,6 +564,9 @@ func (s *Scheduler) OnTaskProgress(taskID, workerID string, progress json.RawMes
 
 // OnTaskSucceeded handles success transition and schedules dependents.
 func (s *Scheduler) OnTaskSucceeded(taskID, workerID string, output json.RawMessage, attempt int, handleID string) {
+	if s.taskTerminalOrMissing(taskID) {
+		return
+	}
 	if s.evented != nil {
 		_, err := s.evented.TransitionTask(context.Background(), taskID, models.StatusSuccess, store.TransitionOptions{
 			Result:     output,
@@ -481,6 +603,9 @@ func (s *Scheduler) OnTaskSucceeded(taskID, workerID string, output json.RawMess
 
 // OnTaskRetry schedules retry with delay.
 func (s *Scheduler) OnTaskRetry(taskID, workerID string, attempt int, runAt time.Time, errMsg string) {
+	if s.taskTerminalOrMissing(taskID) {
+		return
+	}
 	if s.evented != nil {
 		_, err := s.evented.TransitionTask(context.Background(), taskID, models.StatusRetrying, store.TransitionOptions{
 			Error:      errMsg,
@@ -517,6 +642,9 @@ func (s *Scheduler) OnTaskRetry(taskID, workerID string, attempt int, runAt time
 
 // OnTaskFailed handles failure transition and cascade skip behavior.
 func (s *Scheduler) OnTaskFailed(taskID, workerID string, output json.RawMessage, attempt int, errMsg string, handleID string) {
+	if s.taskTerminalOrMissing(taskID) {
+		return
+	}
 	if s.evented != nil {
 		_, err := s.evented.TransitionTask(context.Background(), taskID, models.StatusFailed, store.TransitionOptions{
 			Result:     output,
@@ -550,6 +678,10 @@ func (s *Scheduler) OnTaskFailed(taskID, workerID string, output json.RawMessage
 }
 
 func (s *Scheduler) markSkippedCascade(taskID, reason string) {
+	task, ok := s.state.Get(taskID)
+	if !ok || task.Status.IsTerminal() {
+		return
+	}
 	if s.evented != nil {
 		_, _ = s.evented.TransitionTask(context.Background(), taskID, models.StatusSkipped, store.TransitionOptions{
 			EventType:  models.RuntimeEventFailed,
@@ -566,6 +698,21 @@ func (s *Scheduler) markSkippedCascade(taskID, reason string) {
 	for _, child := range children {
 		s.markSkippedCascade(child, "dependency "+taskID+" skipped")
 	}
+}
+
+func (s *Scheduler) skipDependentsForCancel(ctx context.Context, taskID string) {
+	_ = ctx
+	s.mu.Lock()
+	children := append([]string(nil), s.dependents[taskID]...)
+	s.mu.Unlock()
+	for _, child := range children {
+		s.markSkippedCascade(child, "upstream task cancelled: "+taskID)
+	}
+}
+
+func (s *Scheduler) taskTerminalOrMissing(taskID string) bool {
+	task, ok := s.state.Get(taskID)
+	return !ok || task.Status.IsTerminal()
 }
 
 func (s *Scheduler) enqueueReady(taskID string) {

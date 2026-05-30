@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -81,6 +82,7 @@ func (e *Engine) routesMux() *http.ServeMux {
 	mux.HandleFunc("GET /tasks/{id}", e.handleGetTask)
 	mux.HandleFunc("GET /tasks", e.handleListTasks)
 	mux.HandleFunc("DELETE /tasks/{id}", e.handleDeleteTask)
+	mux.HandleFunc("PUT /tasks/{id}/cancel", e.handleCancelTask)
 	mux.HandleFunc("GET /workers", e.handleListWorkers)
 	mux.HandleFunc("GET /events", e.handleListEvents)
 	mux.HandleFunc("GET /queue", e.handleQueueDepth)
@@ -246,6 +248,38 @@ func (e *Engine) handleDeleteTask(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (e *Engine) handleCancelTask(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	var req struct {
+		Reason string `json:"reason,omitempty"`
+	}
+	if r.Body != nil {
+		err := json.NewDecoder(r.Body).Decode(&req)
+		if err != nil && !errors.Is(err, io.EOF) {
+			writeJSON(w, http.StatusBadRequest, models.ErrorResponse{Error: "invalid JSON: " + err.Error()})
+			return
+		}
+	}
+
+	result, err := e.scheduler.CancelTask(r.Context(), id, req.Reason, "http")
+	if err != nil {
+		switch {
+		case errors.Is(err, scheduler.ErrTaskNotFound):
+			writeJSON(w, http.StatusNotFound, models.ErrorResponse{Error: err.Error()})
+		case errors.Is(err, scheduler.ErrTaskTerminal):
+			writeJSON(w, http.StatusConflict, models.ErrorResponse{Error: err.Error()})
+		default:
+			writeJSON(w, http.StatusInternalServerError, models.ErrorResponse{Error: err.Error()})
+		}
+		return
+	}
+	status := http.StatusAccepted
+	if !result.Cancelled {
+		status = http.StatusOK
+	}
+	writeJSON(w, status, result)
+}
+
 func (e *Engine) handleListWorkers(w http.ResponseWriter, r *http.Request) {
 	es, ok := e.state.(store.EventBackedStore)
 	if !ok {
@@ -380,6 +414,7 @@ func (e *Engine) handleMetrics(w http.ResponseWriter, r *http.Request) {
 		TasksRunning:   e.metrics.TasksRunning.Load(),
 		TasksSucceeded: e.metrics.TasksSucceeded.Load(),
 		TasksFailed:    e.metrics.TasksFailed.Load(),
+		TasksCancelled: e.metrics.TasksCancelled.Load(),
 		ByType:         e.metrics.Snapshot(),
 		QueueReady:     ready,
 		QueueDelayed:   delayed,

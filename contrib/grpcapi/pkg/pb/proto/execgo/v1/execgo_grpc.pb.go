@@ -23,6 +23,7 @@ const (
 	ExecGo_GetTask_FullMethodName     = "/execgo.v1.ExecGo/GetTask"
 	ExecGo_ListTasks_FullMethodName   = "/execgo.v1.ExecGo/ListTasks"
 	ExecGo_DeleteTask_FullMethodName  = "/execgo.v1.ExecGo/DeleteTask"
+	ExecGo_CancelTask_FullMethodName  = "/execgo.v1.ExecGo/CancelTask"
 	ExecGo_Health_FullMethodName      = "/execgo.v1.ExecGo/Health"
 	ExecGo_Metrics_FullMethodName     = "/execgo.v1.ExecGo/Metrics"
 )
@@ -35,6 +36,7 @@ type ExecGoClient interface {
 	GetTask(ctx context.Context, in *GetTaskRequest, opts ...grpc.CallOption) (*GetTaskResponse, error)
 	ListTasks(ctx context.Context, in *ListTasksRequest, opts ...grpc.CallOption) (*ListTasksResponse, error)
 	DeleteTask(ctx context.Context, in *DeleteTaskRequest, opts ...grpc.CallOption) (*DeleteTaskResponse, error)
+	CancelTask(ctx context.Context, in *CancelTaskRequest, opts ...grpc.CallOption) (*CancelTaskResponse, error)
 	Health(ctx context.Context, in *HealthRequest, opts ...grpc.CallOption) (*HealthResponse, error)
 	Metrics(ctx context.Context, in *MetricsRequest, opts ...grpc.CallOption) (*MetricsResponse, error)
 }
@@ -87,6 +89,16 @@ func (c *execGoClient) DeleteTask(ctx context.Context, in *DeleteTaskRequest, op
 	return out, nil
 }
 
+func (c *execGoClient) CancelTask(ctx context.Context, in *CancelTaskRequest, opts ...grpc.CallOption) (*CancelTaskResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CancelTaskResponse)
+	err := c.cc.Invoke(ctx, ExecGo_CancelTask_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *execGoClient) Health(ctx context.Context, in *HealthRequest, opts ...grpc.CallOption) (*HealthResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(HealthResponse)
@@ -115,6 +127,7 @@ type ExecGoServer interface {
 	GetTask(context.Context, *GetTaskRequest) (*GetTaskResponse, error)
 	ListTasks(context.Context, *ListTasksRequest) (*ListTasksResponse, error)
 	DeleteTask(context.Context, *DeleteTaskRequest) (*DeleteTaskResponse, error)
+	CancelTask(context.Context, *CancelTaskRequest) (*CancelTaskResponse, error)
 	Health(context.Context, *HealthRequest) (*HealthResponse, error)
 	Metrics(context.Context, *MetricsRequest) (*MetricsResponse, error)
 	mustEmbedUnimplementedExecGoServer()
@@ -138,6 +151,9 @@ func (UnimplementedExecGoServer) ListTasks(context.Context, *ListTasksRequest) (
 }
 func (UnimplementedExecGoServer) DeleteTask(context.Context, *DeleteTaskRequest) (*DeleteTaskResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteTask not implemented")
+}
+func (UnimplementedExecGoServer) CancelTask(context.Context, *CancelTaskRequest) (*CancelTaskResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CancelTask not implemented")
 }
 func (UnimplementedExecGoServer) Health(context.Context, *HealthRequest) (*HealthResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Health not implemented")
@@ -238,6 +254,24 @@ func _ExecGo_DeleteTask_Handler(srv interface{}, ctx context.Context, dec func(i
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ExecGo_CancelTask_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CancelTaskRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ExecGoServer).CancelTask(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ExecGo_CancelTask_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ExecGoServer).CancelTask(ctx, req.(*CancelTaskRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ExecGo_Health_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(HealthRequest)
 	if err := dec(in); err != nil {
@@ -298,6 +332,10 @@ var ExecGo_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _ExecGo_DeleteTask_Handler,
 		},
 		{
+			MethodName: "CancelTask",
+			Handler:    _ExecGo_CancelTask_Handler,
+		},
+		{
 			MethodName: "Health",
 			Handler:    _ExecGo_Health_Handler,
 		},
@@ -311,13 +349,14 @@ var ExecGo_ServiceDesc = grpc.ServiceDesc{
 }
 
 const (
-	WorkerControl_RegisterWorker_FullMethodName = "/execgo.v1.WorkerControl/RegisterWorker"
-	WorkerControl_Heartbeat_FullMethodName      = "/execgo.v1.WorkerControl/Heartbeat"
-	WorkerControl_PollTask_FullMethodName       = "/execgo.v1.WorkerControl/PollTask"
-	WorkerControl_AckTask_FullMethodName        = "/execgo.v1.WorkerControl/AckTask"
-	WorkerControl_NackTask_FullMethodName       = "/execgo.v1.WorkerControl/NackTask"
-	WorkerControl_ReportProgress_FullMethodName = "/execgo.v1.WorkerControl/ReportProgress"
-	WorkerControl_ReportAudit_FullMethodName    = "/execgo.v1.WorkerControl/ReportAudit"
+	WorkerControl_RegisterWorker_FullMethodName        = "/execgo.v1.WorkerControl/RegisterWorker"
+	WorkerControl_Heartbeat_FullMethodName             = "/execgo.v1.WorkerControl/Heartbeat"
+	WorkerControl_PollTask_FullMethodName              = "/execgo.v1.WorkerControl/PollTask"
+	WorkerControl_CheckTaskCancellation_FullMethodName = "/execgo.v1.WorkerControl/CheckTaskCancellation"
+	WorkerControl_AckTask_FullMethodName               = "/execgo.v1.WorkerControl/AckTask"
+	WorkerControl_NackTask_FullMethodName              = "/execgo.v1.WorkerControl/NackTask"
+	WorkerControl_ReportProgress_FullMethodName        = "/execgo.v1.WorkerControl/ReportProgress"
+	WorkerControl_ReportAudit_FullMethodName           = "/execgo.v1.WorkerControl/ReportAudit"
 )
 
 // WorkerControlClient is the client API for WorkerControl service.
@@ -327,6 +366,7 @@ type WorkerControlClient interface {
 	RegisterWorker(ctx context.Context, in *RegisterWorkerRequest, opts ...grpc.CallOption) (*RegisterWorkerResponse, error)
 	Heartbeat(ctx context.Context, in *HeartbeatRequest, opts ...grpc.CallOption) (*HeartbeatResponse, error)
 	PollTask(ctx context.Context, in *PollTaskRequest, opts ...grpc.CallOption) (*PollTaskResponse, error)
+	CheckTaskCancellation(ctx context.Context, in *CheckTaskCancellationRequest, opts ...grpc.CallOption) (*CheckTaskCancellationResponse, error)
 	AckTask(ctx context.Context, in *AckTaskRequest, opts ...grpc.CallOption) (*AckTaskResponse, error)
 	NackTask(ctx context.Context, in *NackTaskRequest, opts ...grpc.CallOption) (*NackTaskResponse, error)
 	ReportProgress(ctx context.Context, in *ReportProgressRequest, opts ...grpc.CallOption) (*ReportProgressResponse, error)
@@ -365,6 +405,16 @@ func (c *workerControlClient) PollTask(ctx context.Context, in *PollTaskRequest,
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(PollTaskResponse)
 	err := c.cc.Invoke(ctx, WorkerControl_PollTask_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *workerControlClient) CheckTaskCancellation(ctx context.Context, in *CheckTaskCancellationRequest, opts ...grpc.CallOption) (*CheckTaskCancellationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CheckTaskCancellationResponse)
+	err := c.cc.Invoke(ctx, WorkerControl_CheckTaskCancellation_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -418,6 +468,7 @@ type WorkerControlServer interface {
 	RegisterWorker(context.Context, *RegisterWorkerRequest) (*RegisterWorkerResponse, error)
 	Heartbeat(context.Context, *HeartbeatRequest) (*HeartbeatResponse, error)
 	PollTask(context.Context, *PollTaskRequest) (*PollTaskResponse, error)
+	CheckTaskCancellation(context.Context, *CheckTaskCancellationRequest) (*CheckTaskCancellationResponse, error)
 	AckTask(context.Context, *AckTaskRequest) (*AckTaskResponse, error)
 	NackTask(context.Context, *NackTaskRequest) (*NackTaskResponse, error)
 	ReportProgress(context.Context, *ReportProgressRequest) (*ReportProgressResponse, error)
@@ -440,6 +491,9 @@ func (UnimplementedWorkerControlServer) Heartbeat(context.Context, *HeartbeatReq
 }
 func (UnimplementedWorkerControlServer) PollTask(context.Context, *PollTaskRequest) (*PollTaskResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method PollTask not implemented")
+}
+func (UnimplementedWorkerControlServer) CheckTaskCancellation(context.Context, *CheckTaskCancellationRequest) (*CheckTaskCancellationResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CheckTaskCancellation not implemented")
 }
 func (UnimplementedWorkerControlServer) AckTask(context.Context, *AckTaskRequest) (*AckTaskResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AckTask not implemented")
@@ -524,6 +578,24 @@ func _WorkerControl_PollTask_Handler(srv interface{}, ctx context.Context, dec f
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(WorkerControlServer).PollTask(ctx, req.(*PollTaskRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorkerControl_CheckTaskCancellation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CheckTaskCancellationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkerControlServer).CheckTaskCancellation(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkerControl_CheckTaskCancellation_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkerControlServer).CheckTaskCancellation(ctx, req.(*CheckTaskCancellationRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -618,6 +690,10 @@ var WorkerControl_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "PollTask",
 			Handler:    _WorkerControl_PollTask_Handler,
+		},
+		{
+			MethodName: "CheckTaskCancellation",
+			Handler:    _WorkerControl_CheckTaskCancellation_Handler,
 		},
 		{
 			MethodName: "AckTask",

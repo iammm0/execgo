@@ -94,6 +94,10 @@ func (w *WorkerControlServer) PollTask(ctx context.Context, req *execgov1.PollTa
 		_ = w.sched.Queue().Ack(ctx, req.GetWorkerId(), msg.MessageID)
 		return &execgov1.PollTaskResponse{Found: false}, nil
 	}
+	if task.Status.IsTerminal() {
+		_ = w.sched.Queue().Ack(ctx, req.GetWorkerId(), msg.MessageID)
+		return &execgov1.PollTaskResponse{Found: false}, nil
+	}
 
 	attempt := msg.Attempt
 	if attempt <= 0 {
@@ -111,6 +115,36 @@ func (w *WorkerControlServer) PollTask(ctx context.Context, req *execgov1.PollTa
 	}, nil
 }
 
+func (w *WorkerControlServer) CheckTaskCancellation(ctx context.Context, req *execgov1.CheckTaskCancellationRequest) (*execgov1.CheckTaskCancellationResponse, error) {
+	if req == nil {
+		return nil, status.Error(codes.InvalidArgument, "request is required")
+	}
+	if strings.TrimSpace(req.GetWorkerId()) == "" {
+		return nil, status.Error(codes.InvalidArgument, "worker_id is required")
+	}
+	taskID := strings.TrimSpace(req.GetTaskId())
+	if taskID == "" {
+		return nil, status.Error(codes.InvalidArgument, "task_id is required")
+	}
+	task, ok := w.state.Get(taskID)
+	if !ok {
+		return nil, status.Errorf(codes.NotFound, "task not found: %s", taskID)
+	}
+	reason := ""
+	cancelled := task.Status == models.StatusCancelled
+	if cancelled {
+		reason = task.Error
+		if reason == "" {
+			reason = "cancelled"
+		}
+	}
+	return &execgov1.CheckTaskCancellationResponse{
+		Cancelled:        cancelled,
+		Reason:           reason,
+		ServerTimeUnixMs: time.Now().UnixMilli(),
+	}, nil
+}
+
 func (w *WorkerControlServer) AckTask(ctx context.Context, req *execgov1.AckTaskRequest) (*execgov1.AckTaskResponse, error) {
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "request is required")
@@ -124,6 +158,12 @@ func (w *WorkerControlServer) AckTask(ctx context.Context, req *execgov1.AckTask
 	}
 	if strings.TrimSpace(req.GetTaskId()) == "" {
 		return nil, status.Error(codes.InvalidArgument, "task_id is required")
+	}
+	if task, ok := w.state.Get(req.GetTaskId()); ok && task.Status.IsTerminal() {
+		if err := w.sched.Queue().Ack(ctx, workerID, req.GetQueueMessageId()); err != nil {
+			return nil, status.Error(codes.Internal, err.Error())
+		}
+		return &execgov1.AckTaskResponse{Ok: true}, nil
 	}
 
 	attempt := int(req.GetAttempt())

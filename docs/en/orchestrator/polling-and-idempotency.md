@@ -50,7 +50,15 @@ Backoff example:
 
 `DELETE /tasks/{id}` removes the task record from the state store, but it is not a guaranteed “cancel execution”.
 
-So treat DELETE as “state cleanup”, not as a strict cancel mechanism.
+So treat DELETE as “state cleanup”, not as a strict cancel mechanism. To cancel a queued or running task, use:
+
+```bash
+curl -X PUT http://localhost:8080/tasks/{id}/cancel \
+  -H "Content-Type: application/json" \
+  -d '{"reason":"user requested"}'
+```
+
+Cancellation is cooperative. Workers skip cancelled queued tasks when they later observe them, and running tasks stop only when the executor honors context cancellation or a supported async handle cancel.
 
 ## 5) Dynamic params：when downstream depends on upstream outputs
 
@@ -60,4 +68,3 @@ Since ExecGo doesn't do automatic variable substitution into downstream `params`
 - then submit downstream again with the resolved values injected by your orchestrator
 
 This makes your end-to-end workflow multi-phase.
-

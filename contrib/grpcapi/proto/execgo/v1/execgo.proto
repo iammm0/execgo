@@ -9,6 +9,7 @@ service ExecGo {
   rpc GetTask (GetTaskRequest) returns (GetTaskResponse);
   rpc ListTasks (ListTasksRequest) returns (ListTasksResponse);
   rpc DeleteTask (DeleteTaskRequest) returns (DeleteTaskResponse);
+  rpc CancelTask (CancelTaskRequest) returns (CancelTaskResponse);
 
   rpc Health (HealthRequest) returns (HealthResponse);
   rpc Metrics (MetricsRequest) returns (MetricsResponse);
@@ -18,6 +19,7 @@ service WorkerControl {
   rpc RegisterWorker (RegisterWorkerRequest) returns (RegisterWorkerResponse);
   rpc Heartbeat (HeartbeatRequest) returns (HeartbeatResponse);
   rpc PollTask (PollTaskRequest) returns (PollTaskResponse);
+  rpc CheckTaskCancellation (CheckTaskCancellationRequest) returns (CheckTaskCancellationResponse);
   rpc AckTask (AckTaskRequest) returns (AckTaskResponse);
   rpc NackTask (NackTaskRequest) returns (NackTaskResponse);
   rpc ReportProgress (ReportProgressRequest) returns (ReportProgressResponse);
@@ -82,6 +84,19 @@ message DeleteTaskResponse {
   bool deleted = 1;
 }
 
+message CancelTaskRequest {
+  string id = 1;
+  string reason = 2;
+}
+
+message CancelTaskResponse {
+  bool cancelled = 1;
+  string task_id = 2;
+  string status = 3;
+  string previous_status = 4;
+  string reason = 5;
+}
+
 message HealthRequest {}
 
 message HealthResponse {
@@ -98,6 +113,7 @@ message MetricsResponse {
   int64 tasks_succeeded = 3;
   int64 tasks_failed = 4;
   map<string, int64> by_type = 5;
+  int64 tasks_cancelled = 6;
 }
 
 message RegisterWorkerRequest {
@@ -130,6 +146,18 @@ message PollTaskResponse {
   Task task = 3;
   int32 attempt = 4;
   int64 lease_until_unix_ms = 5;
+}
+
+message CheckTaskCancellationRequest {
+  string worker_id = 1;
+  string task_id = 2;
+  int32 attempt = 3;
+}
+
+message CheckTaskCancellationResponse {
+  bool cancelled = 1;
+  string reason = 2;
+  int64 server_time_unix_ms = 3;
 }
 
 message AckTaskRequest {

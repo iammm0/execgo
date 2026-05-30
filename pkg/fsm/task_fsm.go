@@ -45,8 +45,9 @@ var TransitionTable = map[models.TaskStatus]map[models.TaskStatus]struct{}{
 		models.StatusRetrying: {},
 	},
 	models.StatusRetrying: {
-		models.StatusReady:   {},
-		models.StatusSkipped: {},
+		models.StatusReady:     {},
+		models.StatusCancelled: {},
+		models.StatusSkipped:   {},
 	},
 	models.StatusCompensating: {
 		models.StatusCompensated: {},

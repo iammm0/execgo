@@ -184,6 +184,11 @@ curl http://localhost:8080/tasks
 # 查询单个任务 / Get single task
 curl http://localhost:8080/tasks/fetch-data
 
+# 取消任务 / Cancel task
+curl -X PUT http://localhost:8080/tasks/fetch-data/cancel \
+  -H "Content-Type: application/json" \
+  -d '{"reason":"user requested"}'
+
 # 删除任务 / Delete task
 curl -X DELETE http://localhost:8080/tasks/fetch-data
 
@@ -213,6 +218,8 @@ curl -X POST http://localhost:8080/queue/dead/requeue \
   -H "Content-Type: application/json" \
   -d '{"message_id":"execgo:dead|1710000000000-0","delay_ms":0}'
 ```
+
+取消采用状态优先语义：已经在 ready/delayed queue 中的取消任务不会立即从队列物理删除，后续 worker 取到后会直接 ack 且不会执行。因此 `/queue` 的 depth 可能短暂包含已取消但尚未被 worker 清理的消息。
 
 ---
 ## 发布流程 | Release Flow

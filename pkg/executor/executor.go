@@ -35,6 +35,12 @@ type HandleReader interface {
 	GetHandle(handleID string) (*Result, bool)
 }
 
+// HandleCanceller is an optional capability for executors that can cancel an
+// asynchronous task handle after it has been accepted.
+type HandleCanceller interface {
+	CancelHandle(ctx context.Context, handleID string) (*Result, error)
+}
+
 type Tool struct {
 	Name        string            `json:"name"`
 	Category    string            `json:"category"`

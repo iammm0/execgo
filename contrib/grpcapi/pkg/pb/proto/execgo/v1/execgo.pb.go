@@ -577,6 +577,134 @@ func (x *DeleteTaskResponse) GetDeleted() bool {
 	return false
 }
 
+type CancelTaskRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Reason        string                 `protobuf:"bytes,2,opt,name=reason,proto3" json:"reason,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CancelTaskRequest) Reset() {
+	*x = CancelTaskRequest{}
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CancelTaskRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CancelTaskRequest) ProtoMessage() {}
+
+func (x *CancelTaskRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CancelTaskRequest.ProtoReflect.Descriptor instead.
+func (*CancelTaskRequest) Descriptor() ([]byte, []int) {
+	return file_proto_execgo_v1_execgo_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *CancelTaskRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *CancelTaskRequest) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+type CancelTaskResponse struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Cancelled      bool                   `protobuf:"varint,1,opt,name=cancelled,proto3" json:"cancelled,omitempty"`
+	TaskId         string                 `protobuf:"bytes,2,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
+	Status         string                 `protobuf:"bytes,3,opt,name=status,proto3" json:"status,omitempty"`
+	PreviousStatus string                 `protobuf:"bytes,4,opt,name=previous_status,json=previousStatus,proto3" json:"previous_status,omitempty"`
+	Reason         string                 `protobuf:"bytes,5,opt,name=reason,proto3" json:"reason,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *CancelTaskResponse) Reset() {
+	*x = CancelTaskResponse{}
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CancelTaskResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CancelTaskResponse) ProtoMessage() {}
+
+func (x *CancelTaskResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CancelTaskResponse.ProtoReflect.Descriptor instead.
+func (*CancelTaskResponse) Descriptor() ([]byte, []int) {
+	return file_proto_execgo_v1_execgo_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *CancelTaskResponse) GetCancelled() bool {
+	if x != nil {
+		return x.Cancelled
+	}
+	return false
+}
+
+func (x *CancelTaskResponse) GetTaskId() string {
+	if x != nil {
+		return x.TaskId
+	}
+	return ""
+}
+
+func (x *CancelTaskResponse) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *CancelTaskResponse) GetPreviousStatus() string {
+	if x != nil {
+		return x.PreviousStatus
+	}
+	return ""
+}
+
+func (x *CancelTaskResponse) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
 type HealthRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -585,7 +713,7 @@ type HealthRequest struct {
 
 func (x *HealthRequest) Reset() {
 	*x = HealthRequest{}
-	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[9]
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -597,7 +725,7 @@ func (x *HealthRequest) String() string {
 func (*HealthRequest) ProtoMessage() {}
 
 func (x *HealthRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[9]
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -610,7 +738,7 @@ func (x *HealthRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HealthRequest.ProtoReflect.Descriptor instead.
 func (*HealthRequest) Descriptor() ([]byte, []int) {
-	return file_proto_execgo_v1_execgo_proto_rawDescGZIP(), []int{9}
+	return file_proto_execgo_v1_execgo_proto_rawDescGZIP(), []int{11}
 }
 
 type HealthResponse struct {
@@ -624,7 +752,7 @@ type HealthResponse struct {
 
 func (x *HealthResponse) Reset() {
 	*x = HealthResponse{}
-	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[10]
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -636,7 +764,7 @@ func (x *HealthResponse) String() string {
 func (*HealthResponse) ProtoMessage() {}
 
 func (x *HealthResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[10]
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -649,7 +777,7 @@ func (x *HealthResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HealthResponse.ProtoReflect.Descriptor instead.
 func (*HealthResponse) Descriptor() ([]byte, []int) {
-	return file_proto_execgo_v1_execgo_proto_rawDescGZIP(), []int{10}
+	return file_proto_execgo_v1_execgo_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *HealthResponse) GetStatus() string {
@@ -681,7 +809,7 @@ type MetricsRequest struct {
 
 func (x *MetricsRequest) Reset() {
 	*x = MetricsRequest{}
-	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[11]
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -693,7 +821,7 @@ func (x *MetricsRequest) String() string {
 func (*MetricsRequest) ProtoMessage() {}
 
 func (x *MetricsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[11]
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -706,7 +834,7 @@ func (x *MetricsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MetricsRequest.ProtoReflect.Descriptor instead.
 func (*MetricsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_execgo_v1_execgo_proto_rawDescGZIP(), []int{11}
+	return file_proto_execgo_v1_execgo_proto_rawDescGZIP(), []int{13}
 }
 
 type MetricsResponse struct {
@@ -716,13 +844,14 @@ type MetricsResponse struct {
 	TasksSucceeded int64                  `protobuf:"varint,3,opt,name=tasks_succeeded,json=tasksSucceeded,proto3" json:"tasks_succeeded,omitempty"`
 	TasksFailed    int64                  `protobuf:"varint,4,opt,name=tasks_failed,json=tasksFailed,proto3" json:"tasks_failed,omitempty"`
 	ByType         map[string]int64       `protobuf:"bytes,5,rep,name=by_type,json=byType,proto3" json:"by_type,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"`
+	TasksCancelled int64                  `protobuf:"varint,6,opt,name=tasks_cancelled,json=tasksCancelled,proto3" json:"tasks_cancelled,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
 
 func (x *MetricsResponse) Reset() {
 	*x = MetricsResponse{}
-	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[12]
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -734,7 +863,7 @@ func (x *MetricsResponse) String() string {
 func (*MetricsResponse) ProtoMessage() {}
 
 func (x *MetricsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[12]
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -747,7 +876,7 @@ func (x *MetricsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MetricsResponse.ProtoReflect.Descriptor instead.
 func (*MetricsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_execgo_v1_execgo_proto_rawDescGZIP(), []int{12}
+	return file_proto_execgo_v1_execgo_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *MetricsResponse) GetTasksTotal() int64 {
@@ -785,6 +914,13 @@ func (x *MetricsResponse) GetByType() map[string]int64 {
 	return nil
 }
 
+func (x *MetricsResponse) GetTasksCancelled() int64 {
+	if x != nil {
+		return x.TasksCancelled
+	}
+	return 0
+}
+
 type RegisterWorkerRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	WorkerId      string                 `protobuf:"bytes,1,opt,name=worker_id,json=workerId,proto3" json:"worker_id,omitempty"`
@@ -795,7 +931,7 @@ type RegisterWorkerRequest struct {
 
 func (x *RegisterWorkerRequest) Reset() {
 	*x = RegisterWorkerRequest{}
-	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[13]
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -807,7 +943,7 @@ func (x *RegisterWorkerRequest) String() string {
 func (*RegisterWorkerRequest) ProtoMessage() {}
 
 func (x *RegisterWorkerRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[13]
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -820,7 +956,7 @@ func (x *RegisterWorkerRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RegisterWorkerRequest.ProtoReflect.Descriptor instead.
 func (*RegisterWorkerRequest) Descriptor() ([]byte, []int) {
-	return file_proto_execgo_v1_execgo_proto_rawDescGZIP(), []int{13}
+	return file_proto_execgo_v1_execgo_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *RegisterWorkerRequest) GetWorkerId() string {
@@ -847,7 +983,7 @@ type RegisterWorkerResponse struct {
 
 func (x *RegisterWorkerResponse) Reset() {
 	*x = RegisterWorkerResponse{}
-	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[14]
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -859,7 +995,7 @@ func (x *RegisterWorkerResponse) String() string {
 func (*RegisterWorkerResponse) ProtoMessage() {}
 
 func (x *RegisterWorkerResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[14]
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -872,7 +1008,7 @@ func (x *RegisterWorkerResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RegisterWorkerResponse.ProtoReflect.Descriptor instead.
 func (*RegisterWorkerResponse) Descriptor() ([]byte, []int) {
-	return file_proto_execgo_v1_execgo_proto_rawDescGZIP(), []int{14}
+	return file_proto_execgo_v1_execgo_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *RegisterWorkerResponse) GetOk() bool {
@@ -898,7 +1034,7 @@ type HeartbeatRequest struct {
 
 func (x *HeartbeatRequest) Reset() {
 	*x = HeartbeatRequest{}
-	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[15]
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -910,7 +1046,7 @@ func (x *HeartbeatRequest) String() string {
 func (*HeartbeatRequest) ProtoMessage() {}
 
 func (x *HeartbeatRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[15]
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -923,7 +1059,7 @@ func (x *HeartbeatRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HeartbeatRequest.ProtoReflect.Descriptor instead.
 func (*HeartbeatRequest) Descriptor() ([]byte, []int) {
-	return file_proto_execgo_v1_execgo_proto_rawDescGZIP(), []int{15}
+	return file_proto_execgo_v1_execgo_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *HeartbeatRequest) GetWorkerId() string {
@@ -943,7 +1079,7 @@ type HeartbeatResponse struct {
 
 func (x *HeartbeatResponse) Reset() {
 	*x = HeartbeatResponse{}
-	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[16]
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -955,7 +1091,7 @@ func (x *HeartbeatResponse) String() string {
 func (*HeartbeatResponse) ProtoMessage() {}
 
 func (x *HeartbeatResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[16]
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -968,7 +1104,7 @@ func (x *HeartbeatResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HeartbeatResponse.ProtoReflect.Descriptor instead.
 func (*HeartbeatResponse) Descriptor() ([]byte, []int) {
-	return file_proto_execgo_v1_execgo_proto_rawDescGZIP(), []int{16}
+	return file_proto_execgo_v1_execgo_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *HeartbeatResponse) GetOk() bool {
@@ -995,7 +1131,7 @@ type PollTaskRequest struct {
 
 func (x *PollTaskRequest) Reset() {
 	*x = PollTaskRequest{}
-	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[17]
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1007,7 +1143,7 @@ func (x *PollTaskRequest) String() string {
 func (*PollTaskRequest) ProtoMessage() {}
 
 func (x *PollTaskRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[17]
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1020,7 +1156,7 @@ func (x *PollTaskRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PollTaskRequest.ProtoReflect.Descriptor instead.
 func (*PollTaskRequest) Descriptor() ([]byte, []int) {
-	return file_proto_execgo_v1_execgo_proto_rawDescGZIP(), []int{17}
+	return file_proto_execgo_v1_execgo_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *PollTaskRequest) GetWorkerId() string {
@@ -1050,7 +1186,7 @@ type PollTaskResponse struct {
 
 func (x *PollTaskResponse) Reset() {
 	*x = PollTaskResponse{}
-	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[18]
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1062,7 +1198,7 @@ func (x *PollTaskResponse) String() string {
 func (*PollTaskResponse) ProtoMessage() {}
 
 func (x *PollTaskResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[18]
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1075,7 +1211,7 @@ func (x *PollTaskResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PollTaskResponse.ProtoReflect.Descriptor instead.
 func (*PollTaskResponse) Descriptor() ([]byte, []int) {
-	return file_proto_execgo_v1_execgo_proto_rawDescGZIP(), []int{18}
+	return file_proto_execgo_v1_execgo_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *PollTaskResponse) GetFound() bool {
@@ -1113,6 +1249,126 @@ func (x *PollTaskResponse) GetLeaseUntilUnixMs() int64 {
 	return 0
 }
 
+type CheckTaskCancellationRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	WorkerId      string                 `protobuf:"bytes,1,opt,name=worker_id,json=workerId,proto3" json:"worker_id,omitempty"`
+	TaskId        string                 `protobuf:"bytes,2,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
+	Attempt       int32                  `protobuf:"varint,3,opt,name=attempt,proto3" json:"attempt,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CheckTaskCancellationRequest) Reset() {
+	*x = CheckTaskCancellationRequest{}
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CheckTaskCancellationRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CheckTaskCancellationRequest) ProtoMessage() {}
+
+func (x *CheckTaskCancellationRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CheckTaskCancellationRequest.ProtoReflect.Descriptor instead.
+func (*CheckTaskCancellationRequest) Descriptor() ([]byte, []int) {
+	return file_proto_execgo_v1_execgo_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *CheckTaskCancellationRequest) GetWorkerId() string {
+	if x != nil {
+		return x.WorkerId
+	}
+	return ""
+}
+
+func (x *CheckTaskCancellationRequest) GetTaskId() string {
+	if x != nil {
+		return x.TaskId
+	}
+	return ""
+}
+
+func (x *CheckTaskCancellationRequest) GetAttempt() int32 {
+	if x != nil {
+		return x.Attempt
+	}
+	return 0
+}
+
+type CheckTaskCancellationResponse struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	Cancelled        bool                   `protobuf:"varint,1,opt,name=cancelled,proto3" json:"cancelled,omitempty"`
+	Reason           string                 `protobuf:"bytes,2,opt,name=reason,proto3" json:"reason,omitempty"`
+	ServerTimeUnixMs int64                  `protobuf:"varint,3,opt,name=server_time_unix_ms,json=serverTimeUnixMs,proto3" json:"server_time_unix_ms,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *CheckTaskCancellationResponse) Reset() {
+	*x = CheckTaskCancellationResponse{}
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CheckTaskCancellationResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CheckTaskCancellationResponse) ProtoMessage() {}
+
+func (x *CheckTaskCancellationResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CheckTaskCancellationResponse.ProtoReflect.Descriptor instead.
+func (*CheckTaskCancellationResponse) Descriptor() ([]byte, []int) {
+	return file_proto_execgo_v1_execgo_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *CheckTaskCancellationResponse) GetCancelled() bool {
+	if x != nil {
+		return x.Cancelled
+	}
+	return false
+}
+
+func (x *CheckTaskCancellationResponse) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+func (x *CheckTaskCancellationResponse) GetServerTimeUnixMs() int64 {
+	if x != nil {
+		return x.ServerTimeUnixMs
+	}
+	return 0
+}
+
 type AckTaskRequest struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
 	WorkerId       string                 `protobuf:"bytes,1,opt,name=worker_id,json=workerId,proto3" json:"worker_id,omitempty"`
@@ -1130,7 +1386,7 @@ type AckTaskRequest struct {
 
 func (x *AckTaskRequest) Reset() {
 	*x = AckTaskRequest{}
-	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[19]
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1142,7 +1398,7 @@ func (x *AckTaskRequest) String() string {
 func (*AckTaskRequest) ProtoMessage() {}
 
 func (x *AckTaskRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[19]
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1155,7 +1411,7 @@ func (x *AckTaskRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AckTaskRequest.ProtoReflect.Descriptor instead.
 func (*AckTaskRequest) Descriptor() ([]byte, []int) {
-	return file_proto_execgo_v1_execgo_proto_rawDescGZIP(), []int{19}
+	return file_proto_execgo_v1_execgo_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *AckTaskRequest) GetWorkerId() string {
@@ -1230,7 +1486,7 @@ type AckTaskResponse struct {
 
 func (x *AckTaskResponse) Reset() {
 	*x = AckTaskResponse{}
-	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[20]
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1242,7 +1498,7 @@ func (x *AckTaskResponse) String() string {
 func (*AckTaskResponse) ProtoMessage() {}
 
 func (x *AckTaskResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[20]
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1255,7 +1511,7 @@ func (x *AckTaskResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AckTaskResponse.ProtoReflect.Descriptor instead.
 func (*AckTaskResponse) Descriptor() ([]byte, []int) {
-	return file_proto_execgo_v1_execgo_proto_rawDescGZIP(), []int{20}
+	return file_proto_execgo_v1_execgo_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *AckTaskResponse) GetOk() bool {
@@ -1277,7 +1533,7 @@ type NackTaskRequest struct {
 
 func (x *NackTaskRequest) Reset() {
 	*x = NackTaskRequest{}
-	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[21]
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1289,7 +1545,7 @@ func (x *NackTaskRequest) String() string {
 func (*NackTaskRequest) ProtoMessage() {}
 
 func (x *NackTaskRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[21]
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1302,7 +1558,7 @@ func (x *NackTaskRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NackTaskRequest.ProtoReflect.Descriptor instead.
 func (*NackTaskRequest) Descriptor() ([]byte, []int) {
-	return file_proto_execgo_v1_execgo_proto_rawDescGZIP(), []int{21}
+	return file_proto_execgo_v1_execgo_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *NackTaskRequest) GetWorkerId() string {
@@ -1342,7 +1598,7 @@ type NackTaskResponse struct {
 
 func (x *NackTaskResponse) Reset() {
 	*x = NackTaskResponse{}
-	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[22]
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1354,7 +1610,7 @@ func (x *NackTaskResponse) String() string {
 func (*NackTaskResponse) ProtoMessage() {}
 
 func (x *NackTaskResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[22]
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1367,7 +1623,7 @@ func (x *NackTaskResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NackTaskResponse.ProtoReflect.Descriptor instead.
 func (*NackTaskResponse) Descriptor() ([]byte, []int) {
-	return file_proto_execgo_v1_execgo_proto_rawDescGZIP(), []int{22}
+	return file_proto_execgo_v1_execgo_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *NackTaskResponse) GetOk() bool {
@@ -1389,7 +1645,7 @@ type ReportProgressRequest struct {
 
 func (x *ReportProgressRequest) Reset() {
 	*x = ReportProgressRequest{}
-	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[23]
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1401,7 +1657,7 @@ func (x *ReportProgressRequest) String() string {
 func (*ReportProgressRequest) ProtoMessage() {}
 
 func (x *ReportProgressRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[23]
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1414,7 +1670,7 @@ func (x *ReportProgressRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReportProgressRequest.ProtoReflect.Descriptor instead.
 func (*ReportProgressRequest) Descriptor() ([]byte, []int) {
-	return file_proto_execgo_v1_execgo_proto_rawDescGZIP(), []int{23}
+	return file_proto_execgo_v1_execgo_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *ReportProgressRequest) GetWorkerId() string {
@@ -1454,7 +1710,7 @@ type ReportProgressResponse struct {
 
 func (x *ReportProgressResponse) Reset() {
 	*x = ReportProgressResponse{}
-	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[24]
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1466,7 +1722,7 @@ func (x *ReportProgressResponse) String() string {
 func (*ReportProgressResponse) ProtoMessage() {}
 
 func (x *ReportProgressResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[24]
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1479,7 +1735,7 @@ func (x *ReportProgressResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReportProgressResponse.ProtoReflect.Descriptor instead.
 func (*ReportProgressResponse) Descriptor() ([]byte, []int) {
-	return file_proto_execgo_v1_execgo_proto_rawDescGZIP(), []int{24}
+	return file_proto_execgo_v1_execgo_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *ReportProgressResponse) GetOk() bool {
@@ -1501,7 +1757,7 @@ type ReportAuditRequest struct {
 
 func (x *ReportAuditRequest) Reset() {
 	*x = ReportAuditRequest{}
-	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[25]
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1513,7 +1769,7 @@ func (x *ReportAuditRequest) String() string {
 func (*ReportAuditRequest) ProtoMessage() {}
 
 func (x *ReportAuditRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[25]
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1526,7 +1782,7 @@ func (x *ReportAuditRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReportAuditRequest.ProtoReflect.Descriptor instead.
 func (*ReportAuditRequest) Descriptor() ([]byte, []int) {
-	return file_proto_execgo_v1_execgo_proto_rawDescGZIP(), []int{25}
+	return file_proto_execgo_v1_execgo_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *ReportAuditRequest) GetWorkerId() string {
@@ -1566,7 +1822,7 @@ type ReportAuditResponse struct {
 
 func (x *ReportAuditResponse) Reset() {
 	*x = ReportAuditResponse{}
-	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[26]
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1578,7 +1834,7 @@ func (x *ReportAuditResponse) String() string {
 func (*ReportAuditResponse) ProtoMessage() {}
 
 func (x *ReportAuditResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[26]
+	mi := &file_proto_execgo_v1_execgo_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1591,7 +1847,7 @@ func (x *ReportAuditResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReportAuditResponse.ProtoReflect.Descriptor instead.
 func (*ReportAuditResponse) Descriptor() ([]byte, []int) {
-	return file_proto_execgo_v1_execgo_proto_rawDescGZIP(), []int{26}
+	return file_proto_execgo_v1_execgo_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *ReportAuditResponse) GetOk() bool {
@@ -1651,20 +1907,30 @@ const file_proto_execgo_v1_execgo_proto_rawDesc = "" +
 	"\x11DeleteTaskRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\".\n" +
 	"\x12DeleteTaskResponse\x12\x18\n" +
-	"\adeleted\x18\x01 \x01(\bR\adeleted\"\x0f\n" +
+	"\adeleted\x18\x01 \x01(\bR\adeleted\";\n" +
+	"\x11CancelTaskRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x16\n" +
+	"\x06reason\x18\x02 \x01(\tR\x06reason\"\xa4\x01\n" +
+	"\x12CancelTaskResponse\x12\x1c\n" +
+	"\tcancelled\x18\x01 \x01(\bR\tcancelled\x12\x17\n" +
+	"\atask_id\x18\x02 \x01(\tR\x06taskId\x12\x16\n" +
+	"\x06status\x18\x03 \x01(\tR\x06status\x12'\n" +
+	"\x0fprevious_status\x18\x04 \x01(\tR\x0epreviousStatus\x12\x16\n" +
+	"\x06reason\x18\x05 \x01(\tR\x06reason\"\x0f\n" +
 	"\rHealthRequest\"Z\n" +
 	"\x0eHealthResponse\x12\x16\n" +
 	"\x06status\x18\x01 \x01(\tR\x06status\x12\x18\n" +
 	"\aversion\x18\x02 \x01(\tR\aversion\x12\x16\n" +
 	"\x06uptime\x18\x03 \x01(\tR\x06uptime\"\x10\n" +
-	"\x0eMetricsRequest\"\x9f\x02\n" +
+	"\x0eMetricsRequest\"\xc8\x02\n" +
 	"\x0fMetricsResponse\x12\x1f\n" +
 	"\vtasks_total\x18\x01 \x01(\x03R\n" +
 	"tasksTotal\x12#\n" +
 	"\rtasks_running\x18\x02 \x01(\x03R\ftasksRunning\x12'\n" +
 	"\x0ftasks_succeeded\x18\x03 \x01(\x03R\x0etasksSucceeded\x12!\n" +
 	"\ftasks_failed\x18\x04 \x01(\x03R\vtasksFailed\x12?\n" +
-	"\aby_type\x18\x05 \x03(\v2&.execgo.v1.MetricsResponse.ByTypeEntryR\x06byType\x1a9\n" +
+	"\aby_type\x18\x05 \x03(\v2&.execgo.v1.MetricsResponse.ByTypeEntryR\x06byType\x12'\n" +
+	"\x0ftasks_cancelled\x18\x06 \x01(\x03R\x0etasksCancelled\x1a9\n" +
 	"\vByTypeEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\x03R\x05value:\x028\x01\"\xcd\x01\n" +
@@ -1690,7 +1956,15 @@ const file_proto_execgo_v1_execgo_proto_rawDesc = "" +
 	"\x10queue_message_id\x18\x02 \x01(\tR\x0equeueMessageId\x12#\n" +
 	"\x04task\x18\x03 \x01(\v2\x0f.execgo.v1.TaskR\x04task\x12\x18\n" +
 	"\aattempt\x18\x04 \x01(\x05R\aattempt\x12-\n" +
-	"\x13lease_until_unix_ms\x18\x05 \x01(\x03R\x10leaseUntilUnixMs\"\x9c\x02\n" +
+	"\x13lease_until_unix_ms\x18\x05 \x01(\x03R\x10leaseUntilUnixMs\"n\n" +
+	"\x1cCheckTaskCancellationRequest\x12\x1b\n" +
+	"\tworker_id\x18\x01 \x01(\tR\bworkerId\x12\x17\n" +
+	"\atask_id\x18\x02 \x01(\tR\x06taskId\x12\x18\n" +
+	"\aattempt\x18\x03 \x01(\x05R\aattempt\"\x84\x01\n" +
+	"\x1dCheckTaskCancellationResponse\x12\x1c\n" +
+	"\tcancelled\x18\x01 \x01(\bR\tcancelled\x12\x16\n" +
+	"\x06reason\x18\x02 \x01(\tR\x06reason\x12-\n" +
+	"\x13server_time_unix_ms\x18\x03 \x01(\x03R\x10serverTimeUnixMs\"\x9c\x02\n" +
 	"\x0eAckTaskRequest\x12\x1b\n" +
 	"\tworker_id\x18\x01 \x01(\tR\bworkerId\x12(\n" +
 	"\x10queue_message_id\x18\x02 \x01(\tR\x0equeueMessageId\x12\x17\n" +
@@ -1726,19 +2000,22 @@ const file_proto_execgo_v1_execgo_proto_rawDesc = "" +
 	"audit_json\x18\x03 \x01(\tR\tauditJson\x12\x18\n" +
 	"\aattempt\x18\x04 \x01(\x05R\aattempt\"%\n" +
 	"\x13ReportAuditResponse\x12\x0e\n" +
-	"\x02ok\x18\x01 \x01(\bR\x02ok2\xa3\x03\n" +
+	"\x02ok\x18\x01 \x01(\bR\x02ok2\xee\x03\n" +
 	"\x06ExecGo\x12C\n" +
 	"\vSubmitTasks\x12\x14.execgo.v1.TaskGraph\x1a\x1e.execgo.v1.SubmitTasksResponse\x12@\n" +
 	"\aGetTask\x12\x19.execgo.v1.GetTaskRequest\x1a\x1a.execgo.v1.GetTaskResponse\x12F\n" +
 	"\tListTasks\x12\x1b.execgo.v1.ListTasksRequest\x1a\x1c.execgo.v1.ListTasksResponse\x12I\n" +
 	"\n" +
-	"DeleteTask\x12\x1c.execgo.v1.DeleteTaskRequest\x1a\x1d.execgo.v1.DeleteTaskResponse\x12=\n" +
+	"DeleteTask\x12\x1c.execgo.v1.DeleteTaskRequest\x1a\x1d.execgo.v1.DeleteTaskResponse\x12I\n" +
+	"\n" +
+	"CancelTask\x12\x1c.execgo.v1.CancelTaskRequest\x1a\x1d.execgo.v1.CancelTaskResponse\x12=\n" +
 	"\x06Health\x12\x18.execgo.v1.HealthRequest\x1a\x19.execgo.v1.HealthResponse\x12@\n" +
-	"\aMetrics\x12\x19.execgo.v1.MetricsRequest\x1a\x1a.execgo.v1.MetricsResponse2\x9f\x04\n" +
+	"\aMetrics\x12\x19.execgo.v1.MetricsRequest\x1a\x1a.execgo.v1.MetricsResponse2\x8b\x05\n" +
 	"\rWorkerControl\x12U\n" +
 	"\x0eRegisterWorker\x12 .execgo.v1.RegisterWorkerRequest\x1a!.execgo.v1.RegisterWorkerResponse\x12F\n" +
 	"\tHeartbeat\x12\x1b.execgo.v1.HeartbeatRequest\x1a\x1c.execgo.v1.HeartbeatResponse\x12C\n" +
-	"\bPollTask\x12\x1a.execgo.v1.PollTaskRequest\x1a\x1b.execgo.v1.PollTaskResponse\x12@\n" +
+	"\bPollTask\x12\x1a.execgo.v1.PollTaskRequest\x1a\x1b.execgo.v1.PollTaskResponse\x12j\n" +
+	"\x15CheckTaskCancellation\x12'.execgo.v1.CheckTaskCancellationRequest\x1a(.execgo.v1.CheckTaskCancellationResponse\x12@\n" +
 	"\aAckTask\x12\x19.execgo.v1.AckTaskRequest\x1a\x1a.execgo.v1.AckTaskResponse\x12C\n" +
 	"\bNackTask\x12\x1a.execgo.v1.NackTaskRequest\x1a\x1b.execgo.v1.NackTaskResponse\x12U\n" +
 	"\x0eReportProgress\x12 .execgo.v1.ReportProgressRequest\x1a!.execgo.v1.ReportProgressResponse\x12L\n" +
@@ -1756,73 +2033,81 @@ func file_proto_execgo_v1_execgo_proto_rawDescGZIP() []byte {
 	return file_proto_execgo_v1_execgo_proto_rawDescData
 }
 
-var file_proto_execgo_v1_execgo_proto_msgTypes = make([]protoimpl.MessageInfo, 29)
+var file_proto_execgo_v1_execgo_proto_msgTypes = make([]protoimpl.MessageInfo, 33)
 var file_proto_execgo_v1_execgo_proto_goTypes = []any{
-	(*TaskGraph)(nil),              // 0: execgo.v1.TaskGraph
-	(*Task)(nil),                   // 1: execgo.v1.Task
-	(*SubmitTasksResponse)(nil),    // 2: execgo.v1.SubmitTasksResponse
-	(*GetTaskRequest)(nil),         // 3: execgo.v1.GetTaskRequest
-	(*GetTaskResponse)(nil),        // 4: execgo.v1.GetTaskResponse
-	(*ListTasksRequest)(nil),       // 5: execgo.v1.ListTasksRequest
-	(*ListTasksResponse)(nil),      // 6: execgo.v1.ListTasksResponse
-	(*DeleteTaskRequest)(nil),      // 7: execgo.v1.DeleteTaskRequest
-	(*DeleteTaskResponse)(nil),     // 8: execgo.v1.DeleteTaskResponse
-	(*HealthRequest)(nil),          // 9: execgo.v1.HealthRequest
-	(*HealthResponse)(nil),         // 10: execgo.v1.HealthResponse
-	(*MetricsRequest)(nil),         // 11: execgo.v1.MetricsRequest
-	(*MetricsResponse)(nil),        // 12: execgo.v1.MetricsResponse
-	(*RegisterWorkerRequest)(nil),  // 13: execgo.v1.RegisterWorkerRequest
-	(*RegisterWorkerResponse)(nil), // 14: execgo.v1.RegisterWorkerResponse
-	(*HeartbeatRequest)(nil),       // 15: execgo.v1.HeartbeatRequest
-	(*HeartbeatResponse)(nil),      // 16: execgo.v1.HeartbeatResponse
-	(*PollTaskRequest)(nil),        // 17: execgo.v1.PollTaskRequest
-	(*PollTaskResponse)(nil),       // 18: execgo.v1.PollTaskResponse
-	(*AckTaskRequest)(nil),         // 19: execgo.v1.AckTaskRequest
-	(*AckTaskResponse)(nil),        // 20: execgo.v1.AckTaskResponse
-	(*NackTaskRequest)(nil),        // 21: execgo.v1.NackTaskRequest
-	(*NackTaskResponse)(nil),       // 22: execgo.v1.NackTaskResponse
-	(*ReportProgressRequest)(nil),  // 23: execgo.v1.ReportProgressRequest
-	(*ReportProgressResponse)(nil), // 24: execgo.v1.ReportProgressResponse
-	(*ReportAuditRequest)(nil),     // 25: execgo.v1.ReportAuditRequest
-	(*ReportAuditResponse)(nil),    // 26: execgo.v1.ReportAuditResponse
-	nil,                            // 27: execgo.v1.MetricsResponse.ByTypeEntry
-	nil,                            // 28: execgo.v1.RegisterWorkerRequest.CapabilitiesEntry
+	(*TaskGraph)(nil),                     // 0: execgo.v1.TaskGraph
+	(*Task)(nil),                          // 1: execgo.v1.Task
+	(*SubmitTasksResponse)(nil),           // 2: execgo.v1.SubmitTasksResponse
+	(*GetTaskRequest)(nil),                // 3: execgo.v1.GetTaskRequest
+	(*GetTaskResponse)(nil),               // 4: execgo.v1.GetTaskResponse
+	(*ListTasksRequest)(nil),              // 5: execgo.v1.ListTasksRequest
+	(*ListTasksResponse)(nil),             // 6: execgo.v1.ListTasksResponse
+	(*DeleteTaskRequest)(nil),             // 7: execgo.v1.DeleteTaskRequest
+	(*DeleteTaskResponse)(nil),            // 8: execgo.v1.DeleteTaskResponse
+	(*CancelTaskRequest)(nil),             // 9: execgo.v1.CancelTaskRequest
+	(*CancelTaskResponse)(nil),            // 10: execgo.v1.CancelTaskResponse
+	(*HealthRequest)(nil),                 // 11: execgo.v1.HealthRequest
+	(*HealthResponse)(nil),                // 12: execgo.v1.HealthResponse
+	(*MetricsRequest)(nil),                // 13: execgo.v1.MetricsRequest
+	(*MetricsResponse)(nil),               // 14: execgo.v1.MetricsResponse
+	(*RegisterWorkerRequest)(nil),         // 15: execgo.v1.RegisterWorkerRequest
+	(*RegisterWorkerResponse)(nil),        // 16: execgo.v1.RegisterWorkerResponse
+	(*HeartbeatRequest)(nil),              // 17: execgo.v1.HeartbeatRequest
+	(*HeartbeatResponse)(nil),             // 18: execgo.v1.HeartbeatResponse
+	(*PollTaskRequest)(nil),               // 19: execgo.v1.PollTaskRequest
+	(*PollTaskResponse)(nil),              // 20: execgo.v1.PollTaskResponse
+	(*CheckTaskCancellationRequest)(nil),  // 21: execgo.v1.CheckTaskCancellationRequest
+	(*CheckTaskCancellationResponse)(nil), // 22: execgo.v1.CheckTaskCancellationResponse
+	(*AckTaskRequest)(nil),                // 23: execgo.v1.AckTaskRequest
+	(*AckTaskResponse)(nil),               // 24: execgo.v1.AckTaskResponse
+	(*NackTaskRequest)(nil),               // 25: execgo.v1.NackTaskRequest
+	(*NackTaskResponse)(nil),              // 26: execgo.v1.NackTaskResponse
+	(*ReportProgressRequest)(nil),         // 27: execgo.v1.ReportProgressRequest
+	(*ReportProgressResponse)(nil),        // 28: execgo.v1.ReportProgressResponse
+	(*ReportAuditRequest)(nil),            // 29: execgo.v1.ReportAuditRequest
+	(*ReportAuditResponse)(nil),           // 30: execgo.v1.ReportAuditResponse
+	nil,                                   // 31: execgo.v1.MetricsResponse.ByTypeEntry
+	nil,                                   // 32: execgo.v1.RegisterWorkerRequest.CapabilitiesEntry
 }
 var file_proto_execgo_v1_execgo_proto_depIdxs = []int32{
 	1,  // 0: execgo.v1.TaskGraph.tasks:type_name -> execgo.v1.Task
 	1,  // 1: execgo.v1.GetTaskResponse.task:type_name -> execgo.v1.Task
 	1,  // 2: execgo.v1.ListTasksResponse.tasks:type_name -> execgo.v1.Task
-	27, // 3: execgo.v1.MetricsResponse.by_type:type_name -> execgo.v1.MetricsResponse.ByTypeEntry
-	28, // 4: execgo.v1.RegisterWorkerRequest.capabilities:type_name -> execgo.v1.RegisterWorkerRequest.CapabilitiesEntry
+	31, // 3: execgo.v1.MetricsResponse.by_type:type_name -> execgo.v1.MetricsResponse.ByTypeEntry
+	32, // 4: execgo.v1.RegisterWorkerRequest.capabilities:type_name -> execgo.v1.RegisterWorkerRequest.CapabilitiesEntry
 	1,  // 5: execgo.v1.PollTaskResponse.task:type_name -> execgo.v1.Task
 	0,  // 6: execgo.v1.ExecGo.SubmitTasks:input_type -> execgo.v1.TaskGraph
 	3,  // 7: execgo.v1.ExecGo.GetTask:input_type -> execgo.v1.GetTaskRequest
 	5,  // 8: execgo.v1.ExecGo.ListTasks:input_type -> execgo.v1.ListTasksRequest
 	7,  // 9: execgo.v1.ExecGo.DeleteTask:input_type -> execgo.v1.DeleteTaskRequest
-	9,  // 10: execgo.v1.ExecGo.Health:input_type -> execgo.v1.HealthRequest
-	11, // 11: execgo.v1.ExecGo.Metrics:input_type -> execgo.v1.MetricsRequest
-	13, // 12: execgo.v1.WorkerControl.RegisterWorker:input_type -> execgo.v1.RegisterWorkerRequest
-	15, // 13: execgo.v1.WorkerControl.Heartbeat:input_type -> execgo.v1.HeartbeatRequest
-	17, // 14: execgo.v1.WorkerControl.PollTask:input_type -> execgo.v1.PollTaskRequest
-	19, // 15: execgo.v1.WorkerControl.AckTask:input_type -> execgo.v1.AckTaskRequest
-	21, // 16: execgo.v1.WorkerControl.NackTask:input_type -> execgo.v1.NackTaskRequest
-	23, // 17: execgo.v1.WorkerControl.ReportProgress:input_type -> execgo.v1.ReportProgressRequest
-	25, // 18: execgo.v1.WorkerControl.ReportAudit:input_type -> execgo.v1.ReportAuditRequest
-	2,  // 19: execgo.v1.ExecGo.SubmitTasks:output_type -> execgo.v1.SubmitTasksResponse
-	4,  // 20: execgo.v1.ExecGo.GetTask:output_type -> execgo.v1.GetTaskResponse
-	6,  // 21: execgo.v1.ExecGo.ListTasks:output_type -> execgo.v1.ListTasksResponse
-	8,  // 22: execgo.v1.ExecGo.DeleteTask:output_type -> execgo.v1.DeleteTaskResponse
-	10, // 23: execgo.v1.ExecGo.Health:output_type -> execgo.v1.HealthResponse
-	12, // 24: execgo.v1.ExecGo.Metrics:output_type -> execgo.v1.MetricsResponse
-	14, // 25: execgo.v1.WorkerControl.RegisterWorker:output_type -> execgo.v1.RegisterWorkerResponse
-	16, // 26: execgo.v1.WorkerControl.Heartbeat:output_type -> execgo.v1.HeartbeatResponse
-	18, // 27: execgo.v1.WorkerControl.PollTask:output_type -> execgo.v1.PollTaskResponse
-	20, // 28: execgo.v1.WorkerControl.AckTask:output_type -> execgo.v1.AckTaskResponse
-	22, // 29: execgo.v1.WorkerControl.NackTask:output_type -> execgo.v1.NackTaskResponse
-	24, // 30: execgo.v1.WorkerControl.ReportProgress:output_type -> execgo.v1.ReportProgressResponse
-	26, // 31: execgo.v1.WorkerControl.ReportAudit:output_type -> execgo.v1.ReportAuditResponse
-	19, // [19:32] is the sub-list for method output_type
-	6,  // [6:19] is the sub-list for method input_type
+	9,  // 10: execgo.v1.ExecGo.CancelTask:input_type -> execgo.v1.CancelTaskRequest
+	11, // 11: execgo.v1.ExecGo.Health:input_type -> execgo.v1.HealthRequest
+	13, // 12: execgo.v1.ExecGo.Metrics:input_type -> execgo.v1.MetricsRequest
+	15, // 13: execgo.v1.WorkerControl.RegisterWorker:input_type -> execgo.v1.RegisterWorkerRequest
+	17, // 14: execgo.v1.WorkerControl.Heartbeat:input_type -> execgo.v1.HeartbeatRequest
+	19, // 15: execgo.v1.WorkerControl.PollTask:input_type -> execgo.v1.PollTaskRequest
+	21, // 16: execgo.v1.WorkerControl.CheckTaskCancellation:input_type -> execgo.v1.CheckTaskCancellationRequest
+	23, // 17: execgo.v1.WorkerControl.AckTask:input_type -> execgo.v1.AckTaskRequest
+	25, // 18: execgo.v1.WorkerControl.NackTask:input_type -> execgo.v1.NackTaskRequest
+	27, // 19: execgo.v1.WorkerControl.ReportProgress:input_type -> execgo.v1.ReportProgressRequest
+	29, // 20: execgo.v1.WorkerControl.ReportAudit:input_type -> execgo.v1.ReportAuditRequest
+	2,  // 21: execgo.v1.ExecGo.SubmitTasks:output_type -> execgo.v1.SubmitTasksResponse
+	4,  // 22: execgo.v1.ExecGo.GetTask:output_type -> execgo.v1.GetTaskResponse
+	6,  // 23: execgo.v1.ExecGo.ListTasks:output_type -> execgo.v1.ListTasksResponse
+	8,  // 24: execgo.v1.ExecGo.DeleteTask:output_type -> execgo.v1.DeleteTaskResponse
+	10, // 25: execgo.v1.ExecGo.CancelTask:output_type -> execgo.v1.CancelTaskResponse
+	12, // 26: execgo.v1.ExecGo.Health:output_type -> execgo.v1.HealthResponse
+	14, // 27: execgo.v1.ExecGo.Metrics:output_type -> execgo.v1.MetricsResponse
+	16, // 28: execgo.v1.WorkerControl.RegisterWorker:output_type -> execgo.v1.RegisterWorkerResponse
+	18, // 29: execgo.v1.WorkerControl.Heartbeat:output_type -> execgo.v1.HeartbeatResponse
+	20, // 30: execgo.v1.WorkerControl.PollTask:output_type -> execgo.v1.PollTaskResponse
+	22, // 31: execgo.v1.WorkerControl.CheckTaskCancellation:output_type -> execgo.v1.CheckTaskCancellationResponse
+	24, // 32: execgo.v1.WorkerControl.AckTask:output_type -> execgo.v1.AckTaskResponse
+	26, // 33: execgo.v1.WorkerControl.NackTask:output_type -> execgo.v1.NackTaskResponse
+	28, // 34: execgo.v1.WorkerControl.ReportProgress:output_type -> execgo.v1.ReportProgressResponse
+	30, // 35: execgo.v1.WorkerControl.ReportAudit:output_type -> execgo.v1.ReportAuditResponse
+	21, // [21:36] is the sub-list for method output_type
+	6,  // [6:21] is the sub-list for method input_type
 	6,  // [6:6] is the sub-list for extension type_name
 	6,  // [6:6] is the sub-list for extension extendee
 	0,  // [0:6] is the sub-list for field type_name
@@ -1839,7 +2124,7 @@ func file_proto_execgo_v1_execgo_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_execgo_v1_execgo_proto_rawDesc), len(file_proto_execgo_v1_execgo_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   29,
+			NumMessages:   33,
 			NumExtensions: 0,
 			NumServices:   2,
 		},

@@ -13,6 +13,8 @@ import (
 	"github.com/iammm0/execgo/pkg/observability"
 	"github.com/iammm0/execgo/pkg/scheduler"
 	"github.com/iammm0/execgo/pkg/store/eventsourced"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type workerControlHarness struct {
@@ -74,6 +76,44 @@ func TestWorkerControl_RegisterAndHeartbeat(t *testing.T) {
 	}
 	if workers[0].Capabilities["sandbox"] != "docker" {
 		t.Fatalf("expected capability sandbox=docker, got %v", workers[0].Capabilities)
+	}
+}
+
+func TestServer_CancelTaskStatusSemantics(t *testing.T) {
+	h := newWorkerControlHarness(t)
+	ctx := context.Background()
+	server := NewServer(h.store, h.sched, h.metrics, h.server.logger)
+
+	h.sched.Submit(&models.TaskGraph{Tasks: []*models.Task{{ID: "grpc-cancel-ready", Type: "noop"}}})
+	cancelled, err := server.CancelTask(ctx, &execgov1.CancelTaskRequest{
+		Id:     "grpc-cancel-ready",
+		Reason: "grpc test",
+	})
+	if err != nil {
+		t.Fatalf("cancel ready task: %v", err)
+	}
+	if !cancelled.GetCancelled() || cancelled.GetStatus() != string(models.StatusCancelled) || cancelled.GetPreviousStatus() != string(models.StatusReady) {
+		t.Fatalf("unexpected cancel response: %+v", cancelled)
+	}
+
+	again, err := server.CancelTask(ctx, &execgov1.CancelTaskRequest{Id: "grpc-cancel-ready"})
+	if err != nil {
+		t.Fatalf("cancel already cancelled: %v", err)
+	}
+	if again.GetCancelled() || again.GetReason() != "already_cancelled" {
+		t.Fatalf("unexpected already-cancelled response: %+v", again)
+	}
+
+	if _, err := server.CancelTask(ctx, &execgov1.CancelTaskRequest{Id: "grpc-missing"}); status.Code(err) != codes.NotFound {
+		t.Fatalf("missing cancel code=%s err=%v want NotFound", status.Code(err), err)
+	}
+
+	h.sched.Submit(&models.TaskGraph{Tasks: []*models.Task{{ID: "grpc-cancel-done", Type: "noop"}}})
+	h.sched.OnTaskLeased("grpc-cancel-done", "worker-a", time.Now().UTC().Add(time.Second), 1)
+	h.sched.OnTaskStarted("grpc-cancel-done", "worker-a", 1)
+	h.sched.OnTaskSucceeded("grpc-cancel-done", "worker-a", nil, 1, "")
+	if _, err := server.CancelTask(ctx, &execgov1.CancelTaskRequest{Id: "grpc-cancel-done"}); status.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("terminal cancel code=%s err=%v want FailedPrecondition", status.Code(err), err)
 	}
 }
 

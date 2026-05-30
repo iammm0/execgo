@@ -782,6 +782,9 @@ func (m *Manager) applyRuntimeEnvelope(task *models.Task, status models.TaskStat
 		code := models.ErrorExternalFailure
 		retryable := status == models.StatusRetrying
 		switch {
+		case status == models.StatusCancelled:
+			code = models.ErrorCancelled
+			retryable = false
 		case status == models.StatusTimedOut:
 			code = models.ErrorTimeout
 		case strings.Contains(strings.ToLower(task.Error), "deadline exceeded"):

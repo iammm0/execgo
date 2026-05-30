@@ -21,16 +21,17 @@ import (
 
 // RemoteGRPCConfig configures a gRPC-based remote worker client.
 type RemoteGRPCConfig struct {
-	Endpoint          string
-	WorkerID          string
-	Capabilities      map[string]string
-	Concurrency       int
-	PollWait          time.Duration
-	HeartbeatInterval time.Duration
-	RetryBaseBackoff  time.Duration
-	RetryMaxBackoff   time.Duration
-	Runner            sandbox.Runner
-	DialOptions       []grpc.DialOption
+	Endpoint            string
+	WorkerID            string
+	Capabilities        map[string]string
+	Concurrency         int
+	PollWait            time.Duration
+	HeartbeatInterval   time.Duration
+	CancelCheckInterval time.Duration
+	RetryBaseBackoff    time.Duration
+	RetryMaxBackoff     time.Duration
+	Runner              sandbox.Runner
+	DialOptions         []grpc.DialOption
 }
 
 // RemoteGRPCWorker executes tasks fetched from WorkerControl gRPC service.
@@ -61,6 +62,9 @@ func NewRemoteGRPCWorker(cfg RemoteGRPCConfig, logger *slog.Logger) *RemoteGRPCW
 	}
 	if cfg.HeartbeatInterval <= 0 {
 		cfg.HeartbeatInterval = 5 * time.Second
+	}
+	if cfg.CancelCheckInterval <= 0 {
+		cfg.CancelCheckInterval = 500 * time.Millisecond
 	}
 	if cfg.RetryBaseBackoff <= 0 {
 		cfg.RetryBaseBackoff = 100 * time.Millisecond
@@ -222,8 +226,21 @@ func (w *RemoteGRPCWorker) handlePolledTask(ctx context.Context, polled *execgov
 		runCtx, cancel = context.WithCancel(ctx)
 	}
 	defer cancel()
+	watchCtx, stopWatch := context.WithCancel(runCtx)
+	defer stopWatch()
+	go w.watchTaskCancellation(watchCtx, task.ID, attempt, cancel)
+
+	_, _ = w.client.ReportProgress(ctx, &execgov1.ReportProgressRequest{
+		WorkerId:     w.cfg.WorkerID,
+		TaskId:       task.ID,
+		ProgressJson: `{"status":"running"}`,
+		Attempt:      int32(attempt),
+	})
 
 	res, runErr, audit := w.cfg.Runner.Run(runCtx, execImpl, task)
+	if errors.Is(runErr, context.Canceled) && res != nil && res.HandleID != "" {
+		maybeCancelHandle(context.Background(), execImpl, res.HandleID)
+	}
 	if res != nil && len(res.Progress) > 0 {
 		progressJSON, _ := json.Marshal(res.Progress)
 		_, _ = w.client.ReportProgress(ctx, &execgov1.ReportProgressRequest{
@@ -304,6 +321,40 @@ func (w *RemoteGRPCWorker) handlePolledTask(ctx context.Context, polled *execgov
 	return err
 }
 
+func (w *RemoteGRPCWorker) watchTaskCancellation(ctx context.Context, taskID string, attempt int, cancel context.CancelFunc) {
+	if w.client == nil || cancel == nil {
+		return
+	}
+	interval := w.cfg.CancelCheckInterval
+	if interval <= 0 {
+		interval = 500 * time.Millisecond
+	}
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			resp, err := w.client.CheckTaskCancellation(ctx, &execgov1.CheckTaskCancellationRequest{
+				WorkerId: w.cfg.WorkerID,
+				TaskId:   taskID,
+				Attempt:  int32(attempt),
+			})
+			if err != nil {
+				if !errors.Is(err, context.Canceled) {
+					w.logger.Warn("check task cancellation failed", "task_id", taskID, "error", err)
+				}
+				continue
+			}
+			if resp.GetCancelled() {
+				cancel()
+				return
+			}
+		}
+	}
+}
+
 func awaitRuntimeResult(ctx context.Context, execImpl executor.Executor, initial *executor.Result) (*executor.Result, error) {
 	if initial == nil || initial.HandleID == "" {
 		return initial, nil
@@ -321,6 +372,7 @@ func awaitRuntimeResult(ctx context.Context, execImpl executor.Executor, initial
 		}
 		select {
 		case <-ctx.Done():
+			maybeCancelHandle(context.Background(), execImpl, initial.HandleID)
 			return current, ctx.Err()
 		case <-ticker.C:
 			next, found := reader.GetHandle(initial.HandleID)

@@ -135,6 +135,102 @@ func TestDistributedRuntime_RemoteWorkerEndToEndGRPC(t *testing.T) {
 	}
 }
 
+func TestDistributedRuntime_RemoteWorkerCancelGRPC(t *testing.T) {
+	executor.RegisterBuiltins()
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	st, err := eventsourced.NewManager(events.NewMemoryStore(), logger)
+	if err != nil {
+		t.Fatalf("new event sourced manager: %v", err)
+	}
+	metrics := observability.NewMetrics()
+
+	runtimeCtx, runtimeCancel := context.WithCancel(context.Background())
+	defer runtimeCancel()
+
+	sched := scheduler.New(st, metrics, logger, 2)
+	sched.Start(runtimeCtx)
+	defer sched.Stop()
+
+	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen grpc: %v", err)
+	}
+	defer lis.Close()
+
+	grpcSrv := grpc.NewServer()
+	execgov1.RegisterExecGoServer(grpcSrv, grpcserver.NewServer(st, sched, metrics, logger))
+	execgov1.RegisterWorkerControlServer(grpcSrv, grpcserver.NewWorkerControlServer(st, sched, logger))
+	defer grpcSrv.GracefulStop()
+	go func() {
+		_ = grpcSrv.Serve(lis)
+	}()
+
+	conn, err := grpc.DialContext(context.Background(), lis.Addr().String(),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithBlock(),
+	)
+	if err != nil {
+		t.Fatalf("dial grpc server: %v", err)
+	}
+	defer conn.Close()
+
+	execClient := execgov1.NewExecGoClient(conn)
+	remote := worker.NewRemoteGRPCWorker(worker.RemoteGRPCConfig{
+		Endpoint:            lis.Addr().String(),
+		WorkerID:            "remote-worker-cancel-it",
+		Capabilities:        map[string]string{"executor": "os", "sandbox": "local"},
+		Concurrency:         1,
+		PollWait:            50 * time.Millisecond,
+		HeartbeatInterval:   100 * time.Millisecond,
+		CancelCheckInterval: 40 * time.Millisecond,
+	}, logger)
+	if err := remote.Start(runtimeCtx); err != nil {
+		t.Fatalf("start remote grpc worker: %v", err)
+	}
+	defer func() {
+		if stopErr := remote.Stop(); stopErr != nil {
+			t.Fatalf("stop remote grpc worker: %v", stopErr)
+		}
+	}()
+
+	_, err = execClient.SubmitTasks(context.Background(), &execgov1.TaskGraph{
+		Tasks: []*execgov1.Task{{
+			Id:         "remote-cancel-sleep",
+			Type:       "os",
+			ToolName:   "sleep",
+			ParamsJson: `{"duration_ms":5000}`,
+			Priority:   6,
+		}},
+	})
+	if err != nil {
+		t.Fatalf("submit cancel task: %v", err)
+	}
+	waitTaskStatusByGRPC(t, execClient, "remote-cancel-sleep", models.StatusRunning, 5*time.Second)
+
+	cancelResp, err := execClient.CancelTask(context.Background(), &execgov1.CancelTaskRequest{
+		Id:     "remote-cancel-sleep",
+		Reason: "grpc integration cancel",
+	})
+	if err != nil {
+		t.Fatalf("cancel task via grpc: %v", err)
+	}
+	if !cancelResp.GetCancelled() || cancelResp.GetStatus() != string(models.StatusCancelled) {
+		t.Fatalf("unexpected cancel response: %+v", cancelResp)
+	}
+
+	task := waitTaskByGRPC(t, execClient, "remote-cancel-sleep", 5*time.Second)
+	if task.GetStatus() != string(models.StatusCancelled) {
+		t.Fatalf("task status=%s want cancelled", task.GetStatus())
+	}
+	if task.GetRunStatus() != string(models.RuntimeCancelled) {
+		t.Fatalf("run_status=%s want cancelled", task.GetRunStatus())
+	}
+	if got := metrics.TasksCancelled.Load(); got != 1 {
+		t.Fatalf("TasksCancelled=%d want 1", got)
+	}
+}
+
 func waitTaskByGRPC(t *testing.T, client execgov1.ExecGoClient, taskID string, timeout time.Duration) *execgov1.Task {
 	t.Helper()
 
@@ -161,6 +257,28 @@ func waitTaskByGRPC(t *testing.T, client execgov1.ExecGoClient, taskID string, t
 	}
 
 	t.Fatalf("task %s did not become terminal within %v", taskID, timeout)
+	return nil
+}
+
+func waitTaskStatusByGRPC(t *testing.T, client execgov1.ExecGoClient, taskID string, want models.TaskStatus, timeout time.Duration) *execgov1.Task {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		resp, err := client.GetTask(context.Background(), &execgov1.GetTaskRequest{Id: taskID})
+		if err != nil {
+			if status.Code(err) == codes.NotFound {
+				time.Sleep(30 * time.Millisecond)
+				continue
+			}
+			t.Fatalf("grpc get task %s: %v", taskID, err)
+		}
+		task := resp.GetTask()
+		if task != nil && models.TaskStatus(task.GetStatus()) == want {
+			return task
+		}
+		time.Sleep(30 * time.Millisecond)
+	}
+	t.Fatalf("task %s did not reach status %s within %v", taskID, want, timeout)
 	return nil
 }
 

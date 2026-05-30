@@ -313,6 +313,95 @@ func TestQueueOpsEndpoints_DeadLetterRequeue(t *testing.T) {
 	}
 }
 
+func TestHTTPCancelEndpoint_StatusCodes(t *testing.T) {
+	executor.RegisterBuiltins()
+	rt := testutil.NewRuntime(t, 1)
+	rt.Worker.Stop()
+	srv := testutil.NewHTTPServer(t, rt)
+	client := srv.Client()
+
+	rt.Scheduler.Submit(&models.TaskGraph{Tasks: []*models.Task{{ID: "http-cancel-ready", Type: "noop"}}})
+	resp := putCancel(t, client, srv.URL, "http-cancel-ready", `{"reason":"client requested"}`)
+	if resp.StatusCode != http.StatusAccepted {
+		t.Fatalf("first cancel status=%d want %d", resp.StatusCode, http.StatusAccepted)
+	}
+	var accepted struct {
+		Cancelled      bool   `json:"cancelled"`
+		Status         string `json:"status"`
+		PreviousStatus string `json:"previous_status"`
+		Reason         string `json:"reason"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&accepted); err != nil {
+		t.Fatalf("decode cancel response: %v", err)
+	}
+	_ = resp.Body.Close()
+	if !accepted.Cancelled || accepted.Status != string(models.StatusCancelled) || accepted.PreviousStatus != string(models.StatusReady) || accepted.Reason != "client requested" {
+		t.Fatalf("unexpected cancel response: %+v", accepted)
+	}
+
+	resp = putCancel(t, client, srv.URL, "http-cancel-ready", ``)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("second cancel status=%d want %d", resp.StatusCode, http.StatusOK)
+	}
+	_ = resp.Body.Close()
+
+	resp = putCancel(t, client, srv.URL, "http-missing", ``)
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("missing cancel status=%d want %d", resp.StatusCode, http.StatusNotFound)
+	}
+	_ = resp.Body.Close()
+
+	rt.Scheduler.Submit(&models.TaskGraph{Tasks: []*models.Task{{ID: "http-terminal", Type: "noop"}}})
+	rt.Scheduler.OnTaskLeased("http-terminal", "manual", time.Now().UTC().Add(time.Second), 1)
+	rt.Scheduler.OnTaskStarted("http-terminal", "manual", 1)
+	rt.Scheduler.OnTaskSucceeded("http-terminal", "manual", json.RawMessage(`{"ok":true}`), 1, "")
+	resp = putCancel(t, client, srv.URL, "http-terminal", ``)
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("terminal cancel status=%d want %d", resp.StatusCode, http.StatusConflict)
+	}
+	_ = resp.Body.Close()
+}
+
+func TestHTTPCancelEndpoint_RunningTask(t *testing.T) {
+	executor.RegisterBuiltins()
+	rt := testutil.NewRuntime(t, 1)
+	srv := testutil.NewHTTPServer(t, rt)
+	client := srv.Client()
+
+	payload := map[string]any{
+		"tasks": []map[string]any{
+			{"id": "http-running-cancel", "type": "os", "tool_name": "sleep", "params": map[string]any{"duration_ms": 5000}},
+		},
+	}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("marshal payload: %v", err)
+	}
+	resp, err := client.Post(srv.URL+"/tasks", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("POST /tasks error: %v", err)
+	}
+	if resp.StatusCode != http.StatusAccepted {
+		t.Fatalf("POST /tasks status=%d want %d", resp.StatusCode, http.StatusAccepted)
+	}
+	_ = resp.Body.Close()
+
+	waitTaskStatusByHTTP(t, client, srv.URL, "http-running-cancel", models.StatusRunning, 2*time.Second)
+	cancelResp := putCancel(t, client, srv.URL, "http-running-cancel", `{"reason":"stop now"}`)
+	if cancelResp.StatusCode != http.StatusAccepted {
+		t.Fatalf("cancel running status=%d want %d", cancelResp.StatusCode, http.StatusAccepted)
+	}
+	_ = cancelResp.Body.Close()
+
+	task := waitTaskStatusByHTTP(t, client, srv.URL, "http-running-cancel", models.StatusCancelled, 2*time.Second)
+	if task.RunStatus != string(models.RuntimeCancelled) {
+		t.Fatalf("run_status=%q want %q", task.RunStatus, models.RuntimeCancelled)
+	}
+	if task.Runtime == nil || task.Runtime.Error == nil || task.Runtime.Error.Code != models.ErrorCancelled {
+		t.Fatalf("runtime=%+v want cancelled error", task.Runtime)
+	}
+}
+
 func pollTaskByHTTP(t *testing.T, client *http.Client, baseURL, taskID string, timeout time.Duration) *models.Task {
 	t.Helper()
 	deadline := time.Now().Add(timeout)
@@ -325,13 +414,54 @@ func pollTaskByHTTP(t *testing.T, client *http.Client, baseURL, taskID string, t
 		var task models.Task
 		_ = json.NewDecoder(resp.Body).Decode(&task)
 		_ = resp.Body.Close()
-		if task.Status == models.StatusSuccess || task.Status == models.StatusFailed || task.Status == models.StatusSkipped {
+		if task.Status.IsTerminal() {
 			return &task
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
 	t.Fatalf("task %s not terminal within %v", taskID, timeout)
 	return nil
+}
+
+func waitTaskStatusByHTTP(t *testing.T, client *http.Client, baseURL, taskID string, status models.TaskStatus, timeout time.Duration) *models.Task {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		resp, err := client.Get(baseURL + "/tasks/" + taskID)
+		if err != nil {
+			time.Sleep(20 * time.Millisecond)
+			continue
+		}
+		var task models.Task
+		_ = json.NewDecoder(resp.Body).Decode(&task)
+		_ = resp.Body.Close()
+		if task.Status == status {
+			return &task
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatalf("task %s did not reach status %s within %v", taskID, status, timeout)
+	return nil
+}
+
+func putCancel(t *testing.T, client *http.Client, baseURL, taskID, body string) *http.Response {
+	t.Helper()
+	var reader *bytes.Reader
+	if body == "" {
+		reader = bytes.NewReader(nil)
+	} else {
+		reader = bytes.NewReader([]byte(body))
+	}
+	req, err := http.NewRequest(http.MethodPut, baseURL+"/tasks/"+taskID+"/cancel", reader)
+	if err != nil {
+		t.Fatalf("new cancel request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("PUT cancel error: %v", err)
+	}
+	return resp
 }
 
 func seedDeadQueueMessage(t *testing.T, q taskqueue.Queue) string {

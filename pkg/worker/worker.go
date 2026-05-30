@@ -173,6 +173,9 @@ func (w *Worker) handleMessage(ctx context.Context, msg *taskqueue.Message) erro
 	if !ok {
 		return w.scheduler.Queue().Ack(ctx, w.cfg.ID, msg.MessageID)
 	}
+	if task.Status.IsTerminal() {
+		return w.scheduler.Queue().Ack(ctx, w.cfg.ID, msg.MessageID)
+	}
 	attempt := msg.Attempt
 	if attempt <= 0 {
 		attempt = 1
@@ -188,13 +191,13 @@ func (w *Worker) handleMessage(ctx context.Context, msg *taskqueue.Message) erro
 	span.SetAttributes(attribute.String("execgo.task_type", task.Type))
 
 	w.scheduler.OnTaskLeased(task.ID, w.cfg.ID, time.Now().UTC().Add(w.cfg.LeaseDuration), attempt)
-	w.scheduler.OnTaskStarted(task.ID, w.cfg.ID, attempt)
 
 	executor.NormalizeTask(task)
 	execImpl, err := executor.Get(task.Type)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
+		w.scheduler.OnTaskStarted(task.ID, w.cfg.ID, attempt)
 		w.scheduler.OnTaskFailed(task.ID, w.cfg.ID, nil, attempt, err.Error(), "")
 		return w.scheduler.Queue().Ack(ctx, w.cfg.ID, msg.MessageID)
 	}
@@ -206,9 +209,15 @@ func (w *Worker) handleMessage(ctx context.Context, msg *taskqueue.Message) erro
 	} else {
 		runCtx, cancel = context.WithCancel(ctx)
 	}
+	unregister := w.scheduler.RegisterInFlight(task.ID, cancel)
+	defer unregister()
 	defer cancel()
 
+	w.scheduler.OnTaskStarted(task.ID, w.cfg.ID, attempt)
 	res, runErr, audit := w.cfg.Runner.Run(runCtx, execImpl, task)
+	if errors.Is(runErr, context.Canceled) && res != nil {
+		maybeCancelHandle(context.Background(), execImpl, res.HandleID)
+	}
 	if res != nil && len(res.Progress) > 0 {
 		prog, _ := json.Marshal(res.Progress)
 		w.scheduler.OnTaskProgress(task.ID, w.cfg.ID, prog, attempt)
@@ -222,6 +231,10 @@ func (w *Worker) handleMessage(ctx context.Context, msg *taskqueue.Message) erro
 		if w.evented != nil {
 			_ = w.evented.AppendAudit(ctx, task.ID, audit, models.RuntimeEventMetadata{TaskID: task.ID, WorkerID: w.cfg.ID, Attempt: attempt, Producer: "worker"})
 		}
+	}
+
+	if taskDoneOrMissing(w.state, task.ID) {
+		return w.scheduler.Queue().Ack(ctx, w.cfg.ID, msg.MessageID)
 	}
 
 	output := resultOutput(res)
@@ -307,6 +320,7 @@ func (w *Worker) awaitRuntimeResult(ctx context.Context, execImpl executor.Execu
 		}
 		select {
 		case <-ctx.Done():
+			maybeCancelHandle(context.Background(), execImpl, initial.HandleID)
 			return current, ctx.Err()
 		case <-ticker.C:
 			next, found := reader.GetHandle(initial.HandleID)
@@ -316,6 +330,24 @@ func (w *Worker) awaitRuntimeResult(ctx context.Context, execImpl executor.Execu
 			current = next
 		}
 	}
+}
+
+func taskDoneOrMissing(st store.Store, taskID string) bool {
+	task, ok := st.Get(taskID)
+	return !ok || task.Status.IsTerminal()
+}
+
+func maybeCancelHandle(ctx context.Context, execImpl executor.Executor, handleID string) {
+	if handleID == "" {
+		return
+	}
+	canceller, ok := execImpl.(executor.HandleCanceller)
+	if !ok {
+		return
+	}
+	cancelCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	_, _ = canceller.CancelHandle(cancelCtx, handleID)
 }
 
 func runtimeResultError(res *executor.Result) error {
