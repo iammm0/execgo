@@ -3,6 +3,7 @@ package config
 
 import (
 	"flag"
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -118,11 +119,11 @@ func Load(p Provider) *Config {
 		MaxConcurrency:  p.GetInt(KeyMaxConcurrency, 10),
 		ShutdownTimeout: p.GetInt(KeyShutdownTimeout, 15),
 
-		EventStoreBackend:     strings.ToLower(p.GetString(KeyEventStoreBackend, "memory")),
+		EventStoreBackend:     normalizeChoice(p.GetString(KeyEventStoreBackend, "memory")),
 		EventStoreSQLitePath:  p.GetString(KeyEventStoreSQLitePath, ""),
 		EventStorePostgresDSN: p.GetString(KeyEventStorePostgresDSN, ""),
 
-		QueueBackend:  strings.ToLower(p.GetString(KeyQueueBackend, "memory")),
+		QueueBackend:  normalizeChoice(p.GetString(KeyQueueBackend, "memory")),
 		RedisAddr:     p.GetString(KeyRedisAddr, ""),
 		RedisPassword: p.GetString(KeyRedisPassword, ""),
 		RedisDB:       p.GetInt(KeyRedisDB, 0),
@@ -134,7 +135,7 @@ func Load(p Provider) *Config {
 		HeartbeatSeconds:  p.GetInt(KeyHeartbeatSeconds, 5),
 		LeaseSeconds:      p.GetInt(KeyLeaseSeconds, 30),
 
-		SandboxMode:     strings.ToLower(p.GetString(KeySandboxMode, "local")),
+		SandboxMode:     normalizeChoice(p.GetString(KeySandboxMode, "local")),
 		DockerImage:     p.GetString(KeyDockerImage, "alpine:3.21"),
 		DockerCPUs:      p.GetString(KeyDockerCPUs, ""),
 		DockerMemory:    p.GetString(KeyDockerMemory, ""),
@@ -145,6 +146,66 @@ func Load(p Provider) *Config {
 		cfg.EventStoreSQLitePath = cfg.DataDir + "/eventlog.sqlite"
 	}
 	return cfg
+}
+
+// Validate checks whether the loaded configuration is executable.
+func (cfg *Config) Validate() error {
+	if cfg == nil {
+		return fmt.Errorf("config is nil")
+	}
+
+	switch cfg.EventStoreBackend {
+	case "memory":
+	case "sqlite":
+		if strings.TrimSpace(cfg.EventStoreSQLitePath) == "" {
+			return fmt.Errorf("sqlite event store requires %s", EnvEventStoreSQLitePath)
+		}
+	case "postgres":
+		if strings.TrimSpace(cfg.EventStorePostgresDSN) == "" {
+			return fmt.Errorf("postgres event store requires %s", EnvEventStorePostgresDSN)
+		}
+	default:
+		return fmt.Errorf("unsupported event store backend %q (supported: memory, sqlite, postgres)", cfg.EventStoreBackend)
+	}
+
+	switch cfg.QueueBackend {
+	case "memory":
+	case "redis":
+		if strings.TrimSpace(cfg.RedisAddr) == "" {
+			return fmt.Errorf("redis queue requires %s", EnvRedisAddr)
+		}
+	default:
+		return fmt.Errorf("unsupported queue backend %q (supported: memory, redis)", cfg.QueueBackend)
+	}
+
+	switch cfg.SandboxMode {
+	case "local", "docker":
+	default:
+		return fmt.Errorf("unsupported sandbox mode %q (supported: local, docker)", cfg.SandboxMode)
+	}
+
+	if cfg.MaxConcurrency <= 0 {
+		return fmt.Errorf("max concurrency must be positive")
+	}
+	if cfg.ShutdownTimeout <= 0 {
+		return fmt.Errorf("shutdown timeout must be positive")
+	}
+	if cfg.RedisDB < 0 {
+		return fmt.Errorf("redis db must be non-negative")
+	}
+	if cfg.WorkerConcurrency <= 0 {
+		return fmt.Errorf("worker concurrency must be positive")
+	}
+	if cfg.HeartbeatSeconds <= 0 {
+		return fmt.Errorf("heartbeat seconds must be positive")
+	}
+	if cfg.LeaseSeconds <= 0 {
+		return fmt.Errorf("lease seconds must be positive")
+	}
+	if cfg.DockerPidsLimit <= 0 {
+		return fmt.Errorf("docker pids limit must be positive")
+	}
+	return nil
 }
 
 // FlagEnvProvider uses CLI flags with env defaults.
@@ -300,6 +361,10 @@ func nonEmpty(s, def string) string {
 		return s
 	}
 	return def
+}
+
+func normalizeChoice(s string) string {
+	return strings.ToLower(strings.TrimSpace(s))
 }
 
 func envOrDefault(key, fallback string) string {

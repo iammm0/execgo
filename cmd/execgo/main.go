@@ -29,6 +29,10 @@ func main() {
 	cfg := config.Load(config.NewFlagEnvProvider())
 	logger := observability.NewLogger()
 	slog.SetDefault(logger)
+	if err := cfg.Validate(); err != nil {
+		logger.Error("invalid configuration", "error", err)
+		os.Exit(1)
+	}
 
 	logger.Info("ExecGo starting",
 		"addr", cfg.HTTPAddr,

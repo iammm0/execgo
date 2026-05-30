@@ -77,6 +77,42 @@ func TestHTTPTaskFlow_SubmitThenQueryStatus(t *testing.T) {
 	if len(task.Result) == 0 {
 		t.Fatal("expected legacy result field to remain populated for compatibility")
 	}
+
+	workersResp, err := client.Get(srv.URL + "/workers")
+	if err != nil {
+		t.Fatalf("GET /workers error: %v", err)
+	}
+	defer workersResp.Body.Close()
+	if workersResp.StatusCode != http.StatusOK {
+		t.Fatalf("GET /workers status=%d want=%d", workersResp.StatusCode, http.StatusOK)
+	}
+	var workersPayload struct {
+		Workers []models.WorkerNode `json:"workers"`
+	}
+	if err := json.NewDecoder(workersResp.Body).Decode(&workersPayload); err != nil {
+		t.Fatalf("decode workers response: %v", err)
+	}
+	if len(workersPayload.Workers) == 0 {
+		t.Fatal("expected /workers to include the local worker")
+	}
+
+	eventsResp, err := client.Get(srv.URL + "/events?limit=10")
+	if err != nil {
+		t.Fatalf("GET /events error: %v", err)
+	}
+	defer eventsResp.Body.Close()
+	if eventsResp.StatusCode != http.StatusOK {
+		t.Fatalf("GET /events status=%d want=%d", eventsResp.StatusCode, http.StatusOK)
+	}
+	var eventsPayload struct {
+		Events []models.RuntimeEvent `json:"events"`
+	}
+	if err := json.NewDecoder(eventsResp.Body).Decode(&eventsPayload); err != nil {
+		t.Fatalf("decode events response: %v", err)
+	}
+	if len(eventsPayload.Events) == 0 {
+		t.Fatal("expected /events to expose runtime events")
+	}
 }
 
 func TestMCPHTTPFlow_ListCallPoll(t *testing.T) {

@@ -3,6 +3,7 @@ package httpserver
 
 import (
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -15,6 +16,11 @@ import (
 	"github.com/iammm0/execgo/pkg/scheduler"
 	"github.com/iammm0/execgo/pkg/store"
 	execgoversion "github.com/iammm0/execgo/pkg/version"
+)
+
+const (
+	defaultEventsLimit = 100
+	maxEventsLimit     = 1000
 )
 
 // Middleware HTTP 中间件类型 / HTTP middleware signature.
@@ -251,11 +257,18 @@ func (e *Engine) handleListEvents(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusNotImplemented, models.ErrorResponse{Error: "event log is unavailable on current store backend"})
 		return
 	}
-	after, _ := strconv.ParseInt(r.URL.Query().Get("after"), 10, 64)
-	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
-	if limit <= 0 {
-		limit = 100
+
+	after, err := parseNonNegativeInt64(r.URL.Query().Get("after"), "after", 0)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, models.ErrorResponse{Error: err.Error()})
+		return
 	}
+	limit, err := parsePositiveInt(r.URL.Query().Get("limit"), "limit", defaultEventsLimit, maxEventsLimit)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, models.ErrorResponse{Error: err.Error()})
+		return
+	}
+
 	evs, err := es.EventStore().LoadGlobal(r.Context(), after, limit)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, models.ErrorResponse{Error: err.Error()})
@@ -290,6 +303,31 @@ func (e *Engine) handlePrometheusMetrics(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	e.promHTTP.ServeHTTP(w, r)
+}
+
+func parseNonNegativeInt64(raw, name string, defaultVal int64) (int64, error) {
+	if raw == "" {
+		return defaultVal, nil
+	}
+	n, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil || n < 0 {
+		return 0, fmt.Errorf("%s must be a non-negative integer", name)
+	}
+	return n, nil
+}
+
+func parsePositiveInt(raw, name string, defaultVal, maxVal int) (int, error) {
+	if raw == "" {
+		return defaultVal, nil
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil || n <= 0 {
+		return 0, fmt.Errorf("%s must be a positive integer", name)
+	}
+	if n > maxVal {
+		return 0, fmt.Errorf("%s must be <= %d", name, maxVal)
+	}
+	return n, nil
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

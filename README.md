@@ -104,6 +104,14 @@ EXECGO_WORKER_CONCURRENCY=16 \
 ./execgo
 ```
 
+配置会在启动时显式校验，避免拼写错误静默回退到内存模式：
+
+- `EXECGO_EVENT_STORE_BACKEND`: `memory` | `sqlite` | `postgres`
+- `EXECGO_QUEUE_BACKEND`: `memory` | `redis`
+- `EXECGO_SANDBOX_MODE`: `local` | `docker`
+- `postgres` 事件日志必须提供 `EXECGO_EVENT_STORE_POSTGRES_DSN`
+- `redis` 队列必须提供 `EXECGO_REDIS_ADDR`
+
 可选沙箱：
 
 ```bash
@@ -183,6 +191,12 @@ curl http://localhost:8080/metrics
 
 # Prometheus 拉取端点 / Prometheus scrape endpoint
 curl http://localhost:8080/metrics/prometheus
+
+# Worker 注册表 / Worker registry
+curl http://localhost:8080/workers
+
+# 事件日志 / Runtime event log
+curl 'http://localhost:8080/events?after=0&limit=100'
 ```
 
 ---

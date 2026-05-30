@@ -71,6 +71,20 @@ func TestHTTPTaskFlow_ErrorBranches(t *testing.T) {
 			wantStatus: http.StatusNotFound,
 			wantSubstr: "handle not found",
 		},
+		{
+			name:       "events reject invalid offset",
+			method:     http.MethodGet,
+			path:       "/events?after=not-a-number",
+			wantStatus: http.StatusBadRequest,
+			wantSubstr: "after must be a non-negative integer",
+		},
+		{
+			name:       "events reject oversized limit",
+			method:     http.MethodGet,
+			path:       "/events?limit=1001",
+			wantStatus: http.StatusBadRequest,
+			wantSubstr: "limit must be <= 1000",
+		},
 	}
 
 	for _, tc := range cases {
