@@ -9,7 +9,7 @@ require (
 	github.com/iammm0/execgo v0.0.0
 	github.com/iammm0/execgo/contrib/rediscache v0.0.0
 	github.com/iammm0/execgo/contrib/sqlite v0.0.0
-	github.com/redis/go-redis/v9 v9.7.0
+	github.com/redis/go-redis/v9 v9.7.3
 )
 
 require (
