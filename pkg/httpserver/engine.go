@@ -339,7 +339,10 @@ func (e *Engine) handleMetrics(w http.ResponseWriter, r *http.Request) {
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(v)
+	// Status and headers are already committed at this point, so an encoding
+	// failure can no longer be reported to the client; the truncated body is
+	// the only signal left. Ignore it explicitly rather than silently.
+	_ = json.NewEncoder(w).Encode(v)
 }
 
 func taskStatusValue(task *models.Task) models.TaskStatus {

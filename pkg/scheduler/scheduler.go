@@ -188,7 +188,7 @@ func (s *Scheduler) executeTask(ctx context.Context, task *models.Task) {
 		}
 
 		// 构建带超时的 context / build context with timeout
-		execCtx := ctx
+		var execCtx context.Context
 		var cancelFn context.CancelFunc
 		if task.Timeout > 0 {
 			execCtx, cancelFn = context.WithTimeout(ctx, time.Duration(task.Timeout)*time.Millisecond)
