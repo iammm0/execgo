@@ -5,8 +5,22 @@
 [![Go](https://img.shields.io/badge/Go-1.22+-00ADD8?logo=go)](https://go.dev)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Core deps](https://img.shields.io/badge/Core%20module-stdlib%20only-blue.svg)]()
+[![Release](https://img.shields.io/github/v/release/iammm0/execgo?label=release)](https://github.com/iammm0/execgo/releases)
+
+**Data plane:** [`execgo-runtime`](https://github.com/iammm0/execgo-runtime) · **Adapter skills:** [`execgo-skills`](https://github.com/iammm0/execgo-skills) · **Site:** [execgo.site](https://execgo.site)
 
 中文 README：[`README.zh-CN.md`](README.zh-CN.md)
+
+> **In one line.** Your agent is fine at deciding what to do. ExecGo is the part that makes *doing* it governed — dependency ordering, deterministic cancellation, retry with backoff, crash recovery, resource accounting, and an execution contract that never leaks agent reasoning into system logs.
+
+**Not a framework.** It does not replace your planner, your context handling, or your tool-selection UX. Claude Code / Codex / Hermes Agent / OpenClaw keep their own loop; ExecGo turns the actions they pick into validated, cancellable, observable, recoverable tasks.
+
+Try it:
+
+```bash
+go run ./cmd/execgo              # control plane on :8080
+curl -s localhost:8080/health     # reports the released version
+```
 
 ---
 
